@@ -1,0 +1,27 @@
+version: 1
+disable_existing_loggers: False
+formatters:
+  for_file:
+    "()": logging_setup.FileFormatter
+  for_console:
+    "()": logging_setup.ConsoleFormatter
+handlers:
+  console:
+    class: logging.StreamHandler
+    level: INFO
+    stream: ext://sys.stdout
+    formatter: for_console
+  file:
+    class: logging.handlers.TimedRotatingFileHandler
+    when: midnight
+    utc: True
+    backupCount: 5
+    level: DEBUG
+    formatter: for_file
+    # filename set in setup_logging()
+root:
+  level: DEBUG
+  propagate: True
+  handlers:
+    - console
+    - file
