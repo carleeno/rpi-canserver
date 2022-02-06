@@ -46,6 +46,7 @@ class CanReader:
 
         # Decoding setup
         self.__bus_name = bus_name
+        self.__decode_filter = []
         self.decoded_messages = {}
         self.failed_messages = {}
         if dbc_file:
@@ -110,6 +111,8 @@ class CanReader:
     def __decode(self, message: can.Message):
         if not self.__db:
             return
+        if self.__decode_filter and message.arbitration_id not in self.__decode_filter:
+            return
         try:
             db_msg = self.__db.get_message_by_frame_id(message.arbitration_id)
         except KeyError:
@@ -124,6 +127,48 @@ class CanReader:
                         f"({self.channel}) Failed to decode {db_msg.name}: {e}"
                     )
         return
+
+    def set_decode_filter(self, message_names: list, exact_matching: bool = True):
+        """Provide a list of message names to decode only those messages.
+
+        Providing an empty list will decode all known messages.
+        This does not filter can messages in message_queue.
+
+        If exact_matching is False, a message is decoded if it's name contains any string from
+        message_names, not case-sensitive.
+
+        Args:
+            message_names: str list of message names to decode, other messages will be ignored.
+            exact_matching: whether the message name in the filter must exactly match the name in the DBC file.
+        """
+        if not message_names and self.__db:
+            self.__decode_filter = []
+            logging.info(f"({self.channel}) Decoding all messages (unfiltered).")
+            return
+        if not self.__db:
+            raise Exception("Unable to create decode filter, no DBC file provided.")
+
+        db_msgs = self.__db.messages
+        for name in message_names:
+            if exact_matching:
+                try:
+                    db_msg = self.__db.get_message_by_name(name)
+                    self.__decode_filter.append(db_msg.frame_id)
+                except KeyError:
+                    logging.warning(
+                        f"({self.channel}) Filter message '{name}' not found in dbc."
+                    )
+            else:
+                matched_msgs = [
+                    m.frame_id for m in db_msgs if name.lower() in m.name.lower()
+                ]
+                self.__decode_filter.extend(matched_msgs)
+
+        # remove duplicates:
+        self.__decode_filter = list(set(self.__decode_filter))
+        logging.info(
+            f"({self.channel}) Decoding {len(self.__decode_filter)} filtered messages."
+        )
 
     def start(self):
         """This non-blocking method starts the can reader."""
