@@ -119,13 +119,23 @@ class CanReader:
             return  # ignore messages that aren't defined in the db
         if self.__bus_name in db_msg.senders:
             try:
-                self.decoded_messages[db_msg.name] = db_msg.decode(message.data)
+                decoded_data = db_msg.decode(message.data)
             except Exception as e:
                 if not self.failed_messages.get(db_msg.name):
                     self.failed_messages[db_msg.name] = e
                     logging.warn(
                         f"({self.channel}) Failed to decode {db_msg.name}: {e}"
                     )
+                return
+            try:
+                self.decoded_messages[db_msg.name]["data"] = decoded_data
+                self.decoded_messages[db_msg.name]["timestamp"] = message.timestamp
+            except KeyError:
+                self.decoded_messages[db_msg.name] = {
+                    "data": decoded_data,
+                    "msg_def": db_msg,
+                    "timestamp": message.timestamp,
+                }
         return
 
     def set_decode_filter(self, message_names: list, exact_matching: bool = True):
