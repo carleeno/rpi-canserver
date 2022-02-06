@@ -63,7 +63,7 @@ class CanReader:
                 continue
 
             try:
-                self.__can_rx_buffer.put(message)
+                self.__can_rx_buffer.put(message, block=False)
             except Full:
                 logging.error("Dropping message, buffer is full!")
 
@@ -78,7 +78,7 @@ class CanReader:
 
             if message:
                 try:
-                    self.message_queue.put(message)
+                    self.message_queue.put(message, block=False)
                 except Full:
                     pass  # we don't care if nobody is using this external queue
                 self.__decode(message)
