@@ -25,6 +25,10 @@ Ensure you have python3 and pip, then: `pip3 install python-can`
 
 If you have a pican DUO: edit main.py and set `PICAN_DUO = True`
 
+If you want to decode the messages, edit `CAN0_DBC` (and `CAN1_DBC` for pican DUO) in main.py
+
+(by default it uses `Model3CAN.dbc`, download from https://github.com/joshwardell/model3dbc)
+
 ## Running:
 
 `python3 main.py`
