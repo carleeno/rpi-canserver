@@ -8,6 +8,9 @@ import can
 import cantools
 
 
+QUEUE_SIZE = 100
+
+
 class CanReader:
     """Class for getting can messages from a specified bus.
     Incoming messages are buffered for stability, a full buffer will drop messages.
@@ -36,10 +39,10 @@ class CanReader:
         self.__main_thread = Thread(target=self.__main_task)
         self.__stop = False
         self.channel = channel
-        self.message_queue = Queue(100)
+        self.message_queue = Queue(QUEUE_SIZE)
 
         # Buffer setup
-        self.__can_rx_buffer = Queue(100)
+        self.__can_rx_buffer = Queue(QUEUE_SIZE)
         self.__buffer_write_thread = Thread(target=self.__write_to_buffer)
         self.buffer_usage = 0
         self.__smooth_buffer_usage_thread = Thread(target=self.__smooth_buffer_usage)
@@ -78,7 +81,7 @@ class CanReader:
                 continue
 
             try:
-                self.__can_rx_buffer.put(message, block=False)
+                self.__can_rx_buffer.put_nowait(message)
             except Full:
                 logging.error("Dropping message, buffer is full!")
 
@@ -95,7 +98,7 @@ class CanReader:
     def __main_task(self):
         while True:
             try:
-                message = self.__can_rx_buffer.get(block=True, timeout=1)
+                message = self.__can_rx_buffer.get(timeout=1)
             except Empty:
                 message = None
                 if self.__stop:
@@ -103,7 +106,7 @@ class CanReader:
 
             if message:
                 try:
-                    self.message_queue.put(message, block=False)
+                    self.message_queue.put_nowait(message)
                 except Full:
                     pass  # we don't care if nobody is using this external queue
                 self.__decode(message)
@@ -184,6 +187,11 @@ class CanReader:
         """This non-blocking method starts the can reader."""
         os.system(f"sudo /sbin/ip link set {self.channel} up type can bitrate 500000")
         self.__bus = can.interface.Bus(channel=self.channel, bustype="socketcan_native")
+        self.__stop = False
+        self.message_queue = Queue(QUEUE_SIZE)
+        self.decoded_messages = {}
+        self.failed_messages = {}
+
         self.__main_thread.start()
         self.__buffer_write_thread.start()
         self.__smooth_buffer_usage_thread.start()
