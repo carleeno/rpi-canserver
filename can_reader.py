@@ -4,6 +4,7 @@ from queue import Empty, Full, Queue
 from threading import Thread
 
 import can
+import cantools
 
 
 class CanReader:
@@ -15,12 +16,14 @@ class CanReader:
 
     channel_name: str
     """The name of the can channel this reader was init'd with."""
-    decoded_data: dict
-    """Contains decoded data if a dbc_file is specified."""
+    decoded_messages: dict
+    """Contains decoded messages if a dbc_file is specified."""
+    failed_messages: dict
+    """Contains message names which failed to decode, and their reason"""
     message_queue: Queue
     """Contains raw can messages (can.Message). Will stagnate if full."""
 
-    def __init__(self, channel: str = "can0", dbc_file: str = ""):
+    def __init__(self, channel: str = "can0", dbc_file: str = "", bus_name: str = None):
         """Create can reader instance. Nothing happens until you call start().
 
         Args:
@@ -29,20 +32,31 @@ class CanReader:
         """
         os.system(f"sudo /sbin/ip link set {channel} up type can bitrate 500000")
         self.__bus = can.interface.Bus(channel=channel, bustype="socketcan_native")
+        self.__bus_name = bus_name
         self.__can_rx_buffer = Queue(100)
         self.__can_rx_thread = Thread(target=self.__can_rx_task)
         self.__main_thread = Thread(target=self.__main_task)
         self.__stop = False
         self.channel_name = channel
-        self.decoded_data = {}
+        self.decoded_messages = {}
+        self.failed_messages = {}
         self.message_queue = Queue(100)
+        if dbc_file:
+            self.__db = cantools.db.load_file(dbc_file)
+        else:
+            self.__db = None
+        if self.__db:
+            buses = [msg.senders[0] for msg in self.__db.messages]
+            buses = list(set(buses))
+            if bus_name not in buses:
+                raise Exception(f"You must specify bus_name as one of: {buses}")
 
     def __safe_read(self):
         try:
             message = self.__bus.recv(timeout=1)
         except can.CanError as e:
             message = None
-            logging.error(f"Error reading from bus {self.channel_name}: {e}")
+            logging.error(f"Error reading from {self.channel_name}: {e}")
 
         return message
 
@@ -76,8 +90,22 @@ class CanReader:
                     pass  # we don't care if nobody is using this external queue
                 self.__decode(message)
 
-    def __decode(self, message):
-        # TODO implement this
+    def __decode(self, message: can.Message):
+        if not self.__db:
+            return
+        try:
+            db_msg = self.__db.get_message_by_frame_id(message.arbitration_id)
+        except KeyError:
+            return  # ignore messages that aren't defined in the db
+        if self.__bus_name in db_msg.senders:
+            try:
+                self.decoded_messages[db_msg.name] = db_msg.decode(message.data)
+            except Exception as e:
+                if not self.failed_messages.get(db_msg.name):
+                    self.failed_messages[db_msg.name] = e
+                    logging.warn(
+                        f"({self.channel_name}) Failed to decode {db_msg.name}: {e}"
+                    )
         return
 
     def start(self):
