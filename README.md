@@ -23,11 +23,14 @@ Ensure you have python3 and pip, then: `pip3 install python-can`
 
 ## Configuration:
 
-If you have a pican DUO: edit main.py and set `PICAN_DUO = True`
+If you have a pican DUO: edit config.py and set `pican_duo = True`
 
-If you want to decode the messages, edit `CAN0_DBC` (and `CAN1_DBC` for pican DUO) in main.py
+If you want to decode the messages, edit `can0_dbc` (and `can1_dbc` for pican DUO) to point to a .dbc file.
 
 (by default it uses `Model3CAN.dbc`, download from https://github.com/joshwardell/model3dbc)
+
+If you are decoding, it's recommended to set up a filter. Raw messages are not filtered, so .asc logging is not affected. 
+However by filtering which messages are decoded, you'll save considerable CPU usage.
 
 ## Running:
 
