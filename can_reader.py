@@ -1,4 +1,5 @@
 import logging
+import os
 from queue import Empty, Full, Queue
 from threading import Thread
 
@@ -26,12 +27,12 @@ class CanReader:
             channel: can0 or can1 (if you have a pican duo)
             dbc_file: optionally provide a filepath to define message decoding
         """
+        os.system(f"sudo /sbin/ip link set {channel} up type can bitrate 500000")
         self.__bus = can.interface.Bus(channel=channel, bustype="socketcan_native")
         self.__can_rx_buffer = Queue(100)
         self.__can_rx_thread = Thread(target=self.__can_rx_task)
         self.__main_thread = Thread(target=self.__main_task)
         self.__stop = False
-        self.__network_was_down = False
         self.channel_name = channel
         self.decoded_data = {}
         self.message_queue = Queue(100)
@@ -40,17 +41,9 @@ class CanReader:
         try:
             message = self.__bus.recv(timeout=1)
         except can.CanError as e:
-            if "[Errno 100]" in e.args[0]:  # network down
-                if not self.__network_was_down:
-                    logging.warning(f"{self.channel_name} network is down!")
-                    self.__network_was_down = True
-                return None
-            else:
-                raise e
+            message = None
+            logging.error(f"Error reading from bus {self.channel_name}: {e}")
 
-        if message and self.__network_was_down:
-            logging.info(f"{self.channel_name} network is up.")
-            self.__network_was_down = False
         return message
 
     def __can_rx_task(self):
@@ -98,6 +91,7 @@ class CanReader:
         logging.info(f"Stopping can_reader ({self.channel_name})...")
         self.__stop = True
         self.__main_thread.join()
+        os.system(f"sudo /sbin/ip link set {self.channel_name} down")
         logging.info(f"Stopped can_reader ({self.channel_name}).")
 
     def buffer_usage(self) -> float:
