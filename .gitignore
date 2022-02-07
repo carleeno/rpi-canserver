@@ -1,6 +1,9 @@
 # CAN database files
 *.dbc
 
+# runtime log files
+logs/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

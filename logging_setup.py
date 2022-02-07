@@ -1,6 +1,6 @@
 import logging
 import logging.config
-from os import path
+from os import makedirs, path
 
 import yaml
 
@@ -32,8 +32,9 @@ class ConsoleFormatter(logging.Formatter):
         return formatter.format(record)
 
 
-def setup_logging(log_path: str = "/tmp/canserver.log") -> logging.Logger:
+def setup_logging(log_path: str = "logs/canserver.log") -> logging.Logger:
     """Call this to setup logging."""
+    makedirs(path.dirname(log_path), exist_ok=True)
     with open(CONFIG_FILE) as log_config:
         config_yml = log_config.read()
     config_dict = yaml.safe_load(config_yml)
