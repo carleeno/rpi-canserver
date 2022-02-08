@@ -8,7 +8,7 @@ import can
 import cantools
 
 
-QUEUE_SIZE = 100
+BUFFER_SIZE = 100
 
 
 class CanReader:
@@ -28,23 +28,29 @@ class CanReader:
     """Contains decoded messages if a dbc_file is specified."""
     failed_messages: dict
     """Contains message names which failed to decode, and their reason"""
-    message_queue: Queue
-    """Contains raw can messages (can.Message). Will stagnate if full."""
 
-    def __init__(self, channel: str = "can0", dbc_file: str = "", bus_name: str = None):
+    def __init__(
+        self,
+        out_queue: Queue,
+        channel: str = "can0",
+        dbc_file: str = "",
+        bus_name: str = None,
+    ):
         """Create can reader instance. Nothing happens until you call start().
 
         Args:
+            out_queue: multiprocessing queue to dump raw messages to
             channel: can0 or can1 (if you have a pican duo)
             dbc_file: optionally provide a filepath to define message decoding
+            bus_name: if using dbc file, specify this bus' name
         """
         self.__main_thread = Thread(target=self.__main_task)
         self.__stop = False
         self.channel = channel
-        self.message_queue = Queue(QUEUE_SIZE)
+        self.out_queue = out_queue
 
         # Buffer setup
-        self.__can_rx_buffer = Queue(QUEUE_SIZE)
+        self.__can_rx_buffer = Queue(BUFFER_SIZE)
         self.__buffer_write_thread = Thread(target=self.__write_to_buffer)
         self.buffer_usage = 0
         self.__smooth_buffer_usage_thread = Thread(target=self.__smooth_buffer_usage)
@@ -108,7 +114,7 @@ class CanReader:
 
             if message:
                 try:
-                    self.message_queue.put_nowait(message)
+                    self.out_queue.put_nowait(message)
                 except Full:
                     pass  # we don't care if nobody is using this external queue
                 self.__decode(message)
@@ -147,7 +153,7 @@ class CanReader:
         """Provide a list of message names to decode only those messages.
 
         Providing an empty list will decode all known messages.
-        This does not filter can messages in message_queue.
+        This does not filter can messages in out_queue.
 
         If exact_matching is False, a message is decoded if it's name contains any string from
         message_names, not case-sensitive.
@@ -188,10 +194,10 @@ class CanReader:
 
     def start(self):
         """This non-blocking method starts the can reader."""
+        # TODO don't allow running twice
         os.system(f"sudo /sbin/ip link set {self.channel} up type can bitrate 500000")
         self.__bus = can.interface.Bus(channel=self.channel, bustype="socketcan_native")
         self.__stop = False
-        self.message_queue = Queue(QUEUE_SIZE)
         self.decoded_messages = {}
         self.failed_messages = {}
 
@@ -202,6 +208,7 @@ class CanReader:
 
     def stop(self):
         """This cleanly stops all threads."""
+        # TODO don't allow stopping twice
         logging.info(f"Stopping can_reader ({self.channel})...")
         self.__stop = True
         self.__main_thread.join()
