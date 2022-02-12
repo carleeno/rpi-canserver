@@ -22,7 +22,7 @@ can0_filter = [
 can0_filter_exact_match = True
 
 # If you have a pican DUO:
-pican_duo = False
+pican_duo = True
 can1_bus = "ChassisBus"
 can1_dbc = "Model3CAN.dbc"
 # Message names as found in the dbc file:
