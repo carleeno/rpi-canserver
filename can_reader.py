@@ -1,6 +1,7 @@
 import logging
 import os
-from queue import Empty, Full, Queue
+from multiprocessing import Pipe, Process, Queue
+from queue import Empty, Full
 from threading import Thread
 from time import sleep
 
@@ -8,7 +9,7 @@ import can
 import cantools
 
 
-BUFFER_SIZE = 100
+BUFFER_SIZE = 1000
 
 
 class CanReader:
@@ -18,7 +19,7 @@ class CanReader:
     Messages are also decoded if provided a dbc file.
     """
 
-    buffer_usage: int
+    decode_buffer_usage: int
     """Smoothed buffer usage for monitoring performance. Fast rise, slow fall (10/sec)."""
     channel: str
     """The name of the can channel this reader was init'd with."""
@@ -31,7 +32,7 @@ class CanReader:
 
     def __init__(
         self,
-        out_queue: Queue,
+        logger_queue: Queue,
         channel: str = "can0",
         dbc_file: str = "",
         bus_name: str = None,
@@ -39,20 +40,21 @@ class CanReader:
         """Create can reader instance. Nothing happens until you call start().
 
         Args:
-            out_queue: multiprocessing queue to dump raw messages to
+            logger_queue: queue for sending raw messages to logger
             channel: can0 or can1 (if you have a pican duo)
             dbc_file: optionally provide a filepath to define message decoding
             bus_name: if using dbc file, specify this bus' name
         """
-        self.__main_thread = Thread(target=self.__main_task)
-        self.__stop = False
+        self.__decode_thread = Thread(target=self.__decoder_task)
+        self.__thread_stop = False
         self.channel = channel
-        self.out_queue = out_queue
+        self.logger_queue = logger_queue
 
         # Buffer setup
-        self.__can_rx_buffer = Queue(BUFFER_SIZE)
-        self.__buffer_write_thread = Thread(target=self.__write_to_buffer)
-        self.buffer_usage = 0
+        self.__decode_buffer = Queue(BUFFER_SIZE)
+        self.__queue_write_thread = Process(target=self.__write_to_queues)
+        self.__proc_stop_in, self.__proc_stop_out = Pipe()
+        self.decode_buffer_usage = 0
         self.__smooth_buffer_usage_thread = Thread(target=self.__smooth_buffer_usage)
 
         # Decoding setup
@@ -68,55 +70,67 @@ class CanReader:
             buses = [msg.senders[0] for msg in self.db.messages]
             buses = list(set(buses))
             if bus_name not in buses:
-                raise Exception(f"You must specify bus_name as one of: {buses}")
+                raise Exception(f"({self.channel}) You must specify bus_name as one of: {buses}")
 
     def __safe_can_rx(self):
         try:
             message = self.__bus.recv(timeout=1)
         except can.CanError as e:
             message = None
-            logging.error(f"Error reading from {self.channel}: {e}")
+            logging.error(f"({self.channel}) Error reading from {self.channel}: {e}")
 
         return message
 
-    def __write_to_buffer(self):
-        while True:
-            if self.__stop:
-                return
+    def __write_to_queues(self):
+        decode_dropped = 0
+        logging_dropped = 0
+        try:
+            while True:
+                try:
+                    if self.__proc_stop_out.poll() and self.__proc_stop_out.recv():
+                        return
 
-            message = self.__safe_can_rx()
-            if not message:
-                continue
+                    message = self.__safe_can_rx()
+                    if not message:
+                        continue
 
-            try:
-                self.__can_rx_buffer.put_nowait(message)
-            except Full:
-                logging.error("Dropping message, buffer is full!")
-
-            self.buffer_usage = max((self.__can_rx_buffer.qsize(), self.buffer_usage))
+                    try:
+                        self.__decode_buffer.put_nowait(message)
+                    except Full:
+                        decode_dropped += 1
+                        if decode_dropped % 100 == 0:
+                            logging.warning(f"({self.channel}) Dropped {decode_dropped} messages in decode buffer.")
+                    try:
+                        self.logger_queue.put_nowait(message)
+                    except Full:
+                        # logging_dropped += 1
+                        # if logging_dropped % 1000 == 0:
+                        #     logging.warning(f"({self.channel}) Dropped {logging_dropped} messages in logging buffer.")
+                        pass  # this will be full when not logging.
+                except KeyboardInterrupt:
+                    pass
+        except Exception as e:
+            logging.exception(e)
 
     def __smooth_buffer_usage(self):
         while True:
-            if self.buffer_usage > 0:
-                self.buffer_usage += -1
-            if self.__stop:
+            if self.decode_buffer_usage > 0:
+                self.decode_buffer_usage += -1
+            if self.__thread_stop:
                 return
             sleep(0.1)
 
-    def __main_task(self):
+    def __decoder_task(self):
         while True:
+            self.decode_buffer_usage = max((self.__decode_buffer.qsize(), self.decode_buffer_usage))
             try:
-                message = self.__can_rx_buffer.get(timeout=1)
+                message = self.__decode_buffer.get(timeout=1)
             except Empty:
                 message = None
-                if self.__stop:
+                if self.__thread_stop:
                     return
 
             if message:
-                try:
-                    self.out_queue.put_nowait(message)
-                except Full:
-                    pass  # we don't care if nobody is using this external queue
                 self.__decode(message)
 
     def __decode(self, message: can.Message):
@@ -153,7 +167,7 @@ class CanReader:
         """Provide a list of message names to decode only those messages.
 
         Providing an empty list will decode all known messages.
-        This does not filter can messages in out_queue.
+        This does not filter can messages in logger_queue.
 
         If exact_matching is False, a message is decoded if it's name contains any string from
         message_names, not case-sensitive.
@@ -167,7 +181,7 @@ class CanReader:
             logging.info(f"({self.channel}) Decoding all messages (unfiltered).")
             return
         if not self.db:
-            raise Exception("Unable to create decode filter, no DBC file provided.")
+            raise Exception(f"({self.channel}) Unable to create decode filter, no DBC file provided.")
 
         for name in message_names:
             if exact_matching:
@@ -197,20 +211,23 @@ class CanReader:
         # TODO don't allow running twice
         os.system(f"sudo /sbin/ip link set {self.channel} up type can bitrate 500000")
         self.__bus = can.interface.Bus(channel=self.channel, bustype="socketcan_native")
-        self.__stop = False
+        self.__thread_stop = False
         self.decoded_messages = {}
         self.failed_messages = {}
 
-        self.__main_thread.start()
-        self.__buffer_write_thread.start()
+        self.__decode_thread.start()
+        self.__queue_write_thread.start()
         self.__smooth_buffer_usage_thread.start()
-        logging.info(f"Started can_reader ({self.channel}).")
+        logging.info(f"({self.channel}) Started can_reader.")
 
     def stop(self):
         """This cleanly stops all threads."""
         # TODO don't allow stopping twice
-        logging.info(f"Stopping can_reader ({self.channel})...")
-        self.__stop = True
-        self.__main_thread.join()
+        logging.info(f"({self.channel}) Stopping can_reader...")
+        self.__proc_stop_in.send(True)
+        self.__thread_stop = True
+        self.__queue_write_thread.join()
+        self.__smooth_buffer_usage_thread.join()
+        self.__decode_thread.join()
         os.system(f"sudo /sbin/ip link set {self.channel} down")
-        logging.info(f"Stopped can_reader ({self.channel}).")
+        logging.info(f"({self.channel}) Stopped can_reader.")

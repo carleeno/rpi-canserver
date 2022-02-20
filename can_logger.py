@@ -7,6 +7,9 @@ from queue import Empty
 from can.io.asc import ASCWriter
 
 
+QUEUE_SIZE = 10000
+
+
 class CanLogger:
     def __init__(self, log_path="logs/can_logs"):
         self.log_path = log_path.rstrip("/")
@@ -15,7 +18,7 @@ class CanLogger:
         self.__stop, self.__recv_stop = Pipe()
         self.__asc_thread = Process(target=self.__asc_writer)
 
-        self.message_queue = Queue(100)
+        self.message_queue = Queue(QUEUE_SIZE)
 
     def __asc_writer(self):
         try:

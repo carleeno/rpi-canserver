@@ -15,39 +15,43 @@ def main():
     can_logger = CanLogger()
 
     can0 = CanReader(
-        out_queue=can_logger.message_queue,
+        logger_queue=can_logger.message_queue,
         channel="can0",
         dbc_file=cfg.can0_dbc,
         bus_name=cfg.can0_bus,
     )
     can0.set_decode_filter(cfg.can0_filter, cfg.can0_filter_exact_match)
-    can0.start()
 
     if cfg.pican_duo:
         can1 = CanReader(
-            out_queue=can_logger.message_queue,
+            logger_queue=can_logger.message_queue,
             channel="can1",
             dbc_file=cfg.can1_dbc,
             bus_name=cfg.can1_bus,
         )
         can1.set_decode_filter(cfg.can1_filter, cfg.can1_filter_exact_match)
-        can1.start()
 
-    # can_logger.start_logging()
+    # can_logger.start_logging()    
+
+    can0.start()
+    if cfg.pican_duo:
+        can1.start()
 
     try:
         # future (blocking) web_server.run() will go here. for now we sleep.
         while True:
             sleep(1)
+            print(f"Buffer: {can_logger.message_queue.qsize()}, {can0.decode_buffer_usage}, {can1.decode_buffer_usage}")
     except KeyboardInterrupt:
         logging.warning("Keyboard interrupt detected.")
     except SystemExit:
         logging.warning("System exit requested.")
 
-    # can_logger.stop_logging()
     can0.stop()
     if cfg.pican_duo:
         can1.stop()
+
+    # can_logger.stop_logging()
 
 
 if __name__ == "__main__":
