@@ -11,8 +11,9 @@ QUEUE_SIZE = 10000
 
 
 class CanLogger:
-    def __init__(self, log_path="logs/can_logs"):
+    def __init__(self, bus_name="", log_path="logs/can_logs"):
         self.log_path = log_path.rstrip("/")
+        self.bus_name = bus_name
         os.makedirs(log_path, exist_ok=True)
 
         self.__stop, self.__recv_stop = Pipe()
@@ -46,6 +47,8 @@ class CanLogger:
         logging.info("Starting logger...")
         start_time = datetime.now()
         file_name = start_time.strftime("%Y-%m-%d_%H.%M.%S")
+        if self.bus_name:
+            file_name += f"_{self.bus_name}"
         self.asc_file_path = f"{self.log_path}/{file_name}.asc"
         self.__asc_thread.start()
 
@@ -54,4 +57,7 @@ class CanLogger:
         # TODO don't allow stopping twice
         logging.info("Stopping logger...")
         self.__stop.send(True)
-        self.__asc_thread.join()
+        self.__asc_thread.join(timeout=10)
+        if self.__asc_thread.is_alive():
+            logging.error("Stopping logging timed out, killing thread.")
+            self.__asc_thread.kill()

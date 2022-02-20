@@ -7,6 +7,7 @@ from time import sleep
 
 import can
 import cantools
+from can_logger import CanLogger
 
 
 BUFFER_SIZE = 1000
@@ -32,15 +33,15 @@ class CanReader:
 
     def __init__(
         self,
-        logger_queue: Queue,
+        logger: CanLogger,
         channel: str = "can0",
         dbc_file: str = "",
         bus_name: str = None,
     ):
-        """Create can reader instance. Nothing happens until you call start().
+        """Create can reader instance. Nothing happens until you call start_reading().
 
         Args:
-            logger_queue: queue for sending raw messages to logger
+            logger: pass in the logger instance
             channel: can0 or can1 (if you have a pican duo)
             dbc_file: optionally provide a filepath to define message decoding
             bus_name: if using dbc file, specify this bus' name
@@ -48,7 +49,7 @@ class CanReader:
         self.__decode_thread = Thread(target=self.__decoder_task)
         self.__thread_stop = False
         self.channel = channel
-        self.logger_queue = logger_queue
+        self.logger_queue = logger.message_queue
 
         # Buffer setup
         self.__decode_buffer = Queue(BUFFER_SIZE)
@@ -103,9 +104,10 @@ class CanReader:
                     try:
                         self.logger_queue.put_nowait(message)
                     except Full:
-                        # logging_dropped += 1
-                        # if logging_dropped % 1000 == 0:
-                        #     logging.warning(f"({self.channel}) Dropped {logging_dropped} messages in logging buffer.")
+                        logging_dropped += 1
+                        if logging_dropped % 100 == 0:
+                            logging.warning(f"({self.channel}) Dropped {logging_dropped} messages in logging buffer.")
+                        sleep(0.1)  # pause can rx to let the logger catch up
                         pass  # this will be full when not logging.
                 except KeyboardInterrupt:
                     pass
@@ -122,13 +124,13 @@ class CanReader:
 
     def __decoder_task(self):
         while True:
+            if self.__thread_stop:
+                return
             self.decode_buffer_usage = max((self.__decode_buffer.qsize(), self.decode_buffer_usage))
             try:
                 message = self.__decode_buffer.get(timeout=1)
             except Empty:
                 message = None
-                if self.__thread_stop:
-                    return
 
             if message:
                 self.__decode(message)
@@ -206,7 +208,7 @@ class CanReader:
             f"({self.channel}) Decoding {len(self.__decode_filter)} filtered messages."
         )
 
-    def start(self):
+    def start_reading(self):
         """This non-blocking method starts the can reader."""
         # TODO don't allow running twice
         os.system(f"sudo /sbin/ip link set {self.channel} up type can bitrate 500000")
@@ -220,14 +222,24 @@ class CanReader:
         self.__smooth_buffer_usage_thread.start()
         logging.info(f"({self.channel}) Started can_reader.")
 
-    def stop(self):
+    def stop_reading(self):
         """This cleanly stops all threads."""
         # TODO don't allow stopping twice
         logging.info(f"({self.channel}) Stopping can_reader...")
         self.__proc_stop_in.send(True)
         self.__thread_stop = True
-        self.__queue_write_thread.join()
-        self.__smooth_buffer_usage_thread.join()
-        self.__decode_thread.join()
+        self.__queue_write_thread.join(timeout=10)
+        self.__smooth_buffer_usage_thread.join(timeout=10)
+        self.__decode_thread.join(timeout=10)
+        self.__kill_stuck_threads()
         os.system(f"sudo /sbin/ip link set {self.channel} down")
         logging.info(f"({self.channel}) Stopped can_reader.")
+
+    def __kill_stuck_threads(self):
+        if self.__queue_write_thread.is_alive():
+            logging.error("Stopping queue_write_thread timed out, killing thread.")
+            self.__queue_write_thread.kill()
+        if self.__smooth_buffer_usage_thread.is_alive():
+            raise Exception(f"({self.channel}) buffer smoothing thread failed to quit.")
+        if self.__decode_thread.is_alive():
+            raise Exception(f"({self.channel}) decode thread failed to quit.")
