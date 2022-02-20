@@ -49,7 +49,8 @@ class CanReader:
         self.__decode_thread = Thread(target=self.__decoder_task)
         self.__thread_stop = False
         self.channel = channel
-        self.logger_queue = logger.message_queue
+        self.__logger_queue = logger.message_queue
+        self.__logging_running_pipe = logger.running_pipe_out
 
         # Buffer setup
         self.__decode_buffer = Queue(BUFFER_SIZE)
@@ -85,9 +86,13 @@ class CanReader:
     def __write_to_queues(self):
         decode_dropped = 0
         logging_dropped = 0
+        logging_running = False
         try:
             while True:
                 try:
+                    if self.__logging_running_pipe.poll():
+                        logging_running = self.__logging_running_pipe.recv()
+
                     if self.__proc_stop_out.poll() and self.__proc_stop_out.recv():
                         return
 
@@ -101,14 +106,16 @@ class CanReader:
                         decode_dropped += 1
                         if decode_dropped % 100 == 0:
                             logging.warning(f"({self.channel}) Dropped {decode_dropped} messages in decode buffer.")
+
+                    if not logging_running:
+                        continue
                     try:
-                        self.logger_queue.put_nowait(message)
+                        self.__logger_queue.put_nowait(message)
                     except Full:
                         logging_dropped += 1
                         if logging_dropped % 100 == 0:
                             logging.warning(f"({self.channel}) Dropped {logging_dropped} messages in logging buffer.")
                         sleep(0.1)  # pause can rx to let the logger catch up
-                        pass  # this will be full when not logging.
                 except KeyboardInterrupt:
                     pass
         except Exception as e:
@@ -169,7 +176,7 @@ class CanReader:
         """Provide a list of message names to decode only those messages.
 
         Providing an empty list will decode all known messages.
-        This does not filter can messages in logger_queue.
+        This does not filter can messages from being logged.
 
         If exact_matching is False, a message is decoded if it's name contains any string from
         message_names, not case-sensitive.
@@ -237,7 +244,7 @@ class CanReader:
 
     def __kill_stuck_threads(self):
         if self.__queue_write_thread.is_alive():
-            logging.error("Stopping queue_write_thread timed out, killing thread.")
+            logging.error(f"({self.channel}) Stopping queue_write_thread timed out, killing thread.")
             self.__queue_write_thread.kill()
         if self.__smooth_buffer_usage_thread.is_alive():
             raise Exception(f"({self.channel}) buffer smoothing thread failed to quit.")
