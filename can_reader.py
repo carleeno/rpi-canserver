@@ -19,6 +19,9 @@ class CanReader:
         self.decoded_messages = Queue(100)
         self.logger_out = Queue(10000)
 
+        self.__last_60s_msg_count = 0
+        self.__last_msg_count_time = 0.0
+
         self.channel = channel
         self.running = False
         self.__decode_enabled = False
@@ -38,19 +41,24 @@ class CanReader:
                 message = self.__safe_can_rx()
                 if not message:
                     continue
-
                 try:
                     self.__decode_buffer.put_nowait(message)
                 except Full:
                     pass
-
                 try:
                     self.logger_out.put_nowait(message)
                 except Full:
                     pass
-
+                self.__log_fps(message.timestamp)
         except Exception as e:
             self.__log.exception(e)
+
+    def __log_fps(self, msg_ts):
+        self.__last_60s_msg_count += 1
+        if msg_ts > self.__last_msg_count_time + 60:
+            self.__log.debug(f"Avg. FPS: {self.__last_60s_msg_count/60:.2f}")
+            self.__last_60s_msg_count = 0
+            self.__last_msg_count_time = msg_ts
 
     def __decoder_task(self):
         while True:
