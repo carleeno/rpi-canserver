@@ -19,7 +19,7 @@ RESET = "\033[0m"
 
 class FileFormatter(logging.Formatter):
     def format(self, record):
-        format = f"[%(asctime)s] [%(levelname)s] %(filename)s:%(funcName)s:%(lineno)s - %(message)s"
+        format = f"[%(asctime)s] [%(levelname)s] %(filename)s:%(funcName)s:%(lineno)s - (%(name)s) %(message)s"
         formatter = logging.Formatter(format)
         return formatter.format(record)
 

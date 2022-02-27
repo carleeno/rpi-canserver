@@ -1,5 +1,6 @@
 # Have fun!
 
+decode_interval = 1 / 30  # 30 fps
 
 can0_bus = "ChassisBus"
 can0_dbc = "Model3CAN.dbc"
@@ -12,7 +13,6 @@ can0_filter = [
     "ID175WheelSpeed",
     "ID185ESP_brakeTorque",
 ]
-can0_filter_exact_match = True
 
 # If you have a pican DUO:
 pican_duo = True
@@ -34,4 +34,3 @@ can1_filter = [
     "ID273UI_vehicleControl",
     "ID3C2VCLEFT_switchStatus",
 ]
-can1_filter_exact_match = True

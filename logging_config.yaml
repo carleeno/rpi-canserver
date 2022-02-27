@@ -19,6 +19,9 @@ handlers:
     level: DEBUG
     formatter: for_file
     # filename set in setup_logging()
+loggers:
+  can:
+    level: WARNING
 root:
   level: DEBUG
   propagate: True

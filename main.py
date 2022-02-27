@@ -6,32 +6,28 @@ from can_logger import CanLogger
 from can_reader import CanReader
 from logging_setup import setup_logging
 
+
 setup_logging()
+log = logging.getLogger("canserver.main")
 
 
 def main():
-    logging.info("################ CAN-Server is starting ################")
+    log.info("################ CAN-Server is starting ################")
 
-    can0_logger = CanLogger(bus_name=cfg.can0_bus)
-    can0_reader = CanReader(
-        logger=can0_logger,
-        channel="can0",
-        dbc_file=cfg.can0_dbc,
-        bus_name=cfg.can0_bus,
+    can0_reader = CanReader(channel="can0")
+    can0_reader.setup_decoding(
+        cfg.can0_dbc, cfg.can0_bus, cfg.can0_filter, cfg.decode_interval
     )
-    can0_reader.set_decode_filter(cfg.can0_filter, cfg.can0_filter_exact_match)
+    can0_logger = CanLogger(can0_reader)
 
     if cfg.pican_duo:
-        can1_logger = CanLogger(bus_name=cfg.can1_bus)
-        can1_reader = CanReader(
-            logger=can1_logger,
-            channel="can1",
-            dbc_file=cfg.can1_dbc,
-            bus_name=cfg.can1_bus,
+        can1_reader = CanReader(channel="can1")
+        can1_reader.setup_decoding(
+            cfg.can1_dbc, cfg.can1_bus, cfg.can1_filter, cfg.decode_interval
         )
-        can1_reader.set_decode_filter(cfg.can1_filter, cfg.can1_filter_exact_match)
+        can1_logger = CanLogger(can1_reader)
 
-    can0_logger.start_logging()    
+    can0_logger.start_logging()
     can0_reader.start_reading()
     if cfg.pican_duo:
         can1_logger.start_logging()
@@ -40,13 +36,12 @@ def main():
     try:
         # future (blocking) web_server.run() will go here. for now we sleep.
         while True:
-            logging.debug(f"can0 buffers: {can0_logger.message_queue.qsize()}, {can0_reader.decode_buffer_usage}")
-            logging.debug(f"can1 buffers: {can1_logger.message_queue.qsize()}, {can1_reader.decode_buffer_usage}")
+            log.debug(
+                f"log buffers: {can0_reader.logger_out.qsize()}, {can1_reader.logger_out.qsize()}"
+            )
             sleep(10)
     except KeyboardInterrupt:
-        logging.warning("Keyboard interrupt detected.")
-    except SystemExit:
-        logging.warning("System exit requested.")
+        log.warning("Keyboard interrupt detected.")
 
     can0_reader.stop_reading()
     can0_logger.stop_logging()
@@ -59,4 +54,4 @@ if __name__ == "__main__":
     try:
         main()
     except Exception as e:
-        logging.exception(e)
+        log.exception(e)
