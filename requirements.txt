@@ -1,3 +1,6 @@
-python-can
 cantools
+dash
+dash_daq
+dash-bootstrap-templates
 faster-fifo
+python-can

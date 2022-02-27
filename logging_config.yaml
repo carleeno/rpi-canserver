@@ -22,6 +22,8 @@ handlers:
 loggers:
   can:
     level: WARNING
+  werkzeug:
+    level: WARNING
 root:
   level: DEBUG
   propagate: True

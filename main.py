@@ -1,6 +1,7 @@
 import logging
 
 import config as cfg
+import web_server
 from can_logger import CanLogger
 from can_reader import CanReader
 from logging_setup import setup_logging
@@ -16,6 +17,7 @@ class CanServer:
         self.can0_reader.setup_decoding(
             cfg.can0_dbc, cfg.can0_bus, cfg.can0_filter, cfg.decode_interval
         )
+        web_server.reader_queues.append(self.can0_reader.decoded_messages)
         self.can0_logger = CanLogger(self.can0_reader)
 
         if cfg.pican_duo:
@@ -23,6 +25,7 @@ class CanServer:
             self.can1_reader.setup_decoding(
                 cfg.can1_dbc, cfg.can1_bus, cfg.can1_filter, cfg.decode_interval
             )
+            web_server.reader_queues.append(self.can1_reader.decoded_messages)
             self.can1_logger = CanLogger(self.can1_reader)
 
     def _start_logging(self):
@@ -41,14 +44,7 @@ class CanServer:
         self.can0_reader.start_reading()
         if cfg.pican_duo:
             self.can1_reader.start_reading()
-
-        # future (blocking) web_server.run() will go here. for now we block on input.
-        while True:
-            command = input("'start' or 'stop' logging: ")
-            if command == "start":
-                self._start_logging()
-            elif command == "stop":
-                self._stop_logging()
+        web_server.run()  # blocking
 
     def shutdown(self):
         self.can0_reader.stop_reading()
@@ -62,15 +58,12 @@ def main():
     try:
         canserver = CanServer()
         canserver.run()
-    except KeyboardInterrupt:
-        log.warning("Keyboard interrupt detected.")
-        canserver.shutdown()
     except Exception as e:
         log.exception(e)
-        try:
-            canserver.shutdown()
-        except:
-            pass
+    try:
+        canserver.shutdown()
+    except:
+        pass
 
 
 if __name__ == "__main__":
