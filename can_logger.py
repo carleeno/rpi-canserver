@@ -53,7 +53,7 @@ class CanLogger:
         self.__logger_thread = Process(target=self.__write_thread)
         self.__logger_thread.start()
         signal.signal(signal.SIGINT, s)
-        self.__attached_reader.logger_running = True
+        self.__attached_reader.logger_running_pipe.send(True)
         self.running = True
         self.__log.info(f"Started log: {self.asc_file_path}")
 
@@ -63,7 +63,7 @@ class CanLogger:
             self.__log.warning("Logging already stopped.")
             return
         self.__log.debug("Stopping logger...")
-        self.__attached_reader.logger_running = False
+        self.__attached_reader.logger_running_pipe.send(False)
         self.__logger_thread.kill()
         self.__asc_writer.stop()
         self.running = False

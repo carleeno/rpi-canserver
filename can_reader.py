@@ -2,7 +2,7 @@ import logging
 import os
 import signal
 from datetime import datetime
-from multiprocessing import Process
+from multiprocessing import Pipe, Process
 
 import can
 import cantools
@@ -14,31 +14,29 @@ class FPSCounter:
         self._log_interval = log_interval
         self._log = logging.getLogger(name)
         self._counter = 0
-        self._last_count = 0
         self._last_log_time = datetime.now().timestamp()
 
     def _interval_elapsed(self):
-        self._counter += 1
         now = datetime.now().timestamp()
         self._period = now - self._last_log_time
         if self._period >= self._log_interval:
-            self._last_count = self._counter
             self._last_log_time = now
-            self._counter = 0
             return True
         return False
 
-    def count(self):
+    def count(self, frames: int = 1):
+        self._counter += frames
         if self._interval_elapsed():
-            self._log.debug(f"Average FPS: {self._last_count/self._period:.0f}")
+            self._log.debug(f"Average FPS: {self._counter/self._period:.0f}")
+            self._counter = 0
 
 
 class DropCounter(FPSCounter):
-    def count(self):
+    def count(self, frames: int = 1):
+        self._counter += frames
         if self._interval_elapsed():
-            self._log.warning(
-                f"Dropped {self._last_count} frames in {self._period:.0f}s"
-            )
+            self._log.warning(f"Dropped {self._counter} frames in {self._period:.0f}s")
+            self._counter = 0
 
 
 class CanReader:
@@ -51,7 +49,8 @@ class CanReader:
         self.__decode_buffer = Queue()
         self.decoded_messages = Queue()
         self.logger_out = Queue()
-        self.logger_running = False
+        self.logger_running_pipe, self.__logger_running_pipe = Pipe()
+        self.logger_running_pipe.send(False)
 
         self.__rx_fps = FPSCounter(f"{channel}_rx")
         self.__decode_fps = FPSCounter(f"{channel}_decode")
@@ -74,24 +73,24 @@ class CanReader:
     def __write_to_queues(self):
         try:
             while True:
-                message_buffer = []
-                while len(message_buffer) < 100:
+                if self.__logger_running_pipe.poll():
+                    logger_running = self.__logger_running_pipe.recv()
+                batch = []
+                while len(batch) < 100:
                     message = self.__safe_can_rx()
                     if message:
-                        message_buffer.append(message)
+                        batch.append(message)
                         self.__rx_fps.count()
                 try:
-                    self.__decode_buffer.put_many_nowait(message_buffer)
+                    self.__decode_buffer.put_many_nowait(batch)
                 except Full:
                     if self.__decode_enabled:
-                        for m in message_buffer:
-                            self.__dropped_decoder.count()
+                        self.__dropped_decoder.count(len(batch))
                 try:
-                    self.logger_out.put_many_nowait(message_buffer)
+                    self.logger_out.put_many_nowait(batch)
                 except Full:
-                    if self.logger_running:
-                        for m in message_buffer:
-                            self.__dropped_logger.count()
+                    if logger_running:
+                        self.__dropped_logger.count(len(batch))
         except Exception as e:
             self.__log.exception(e)
 
