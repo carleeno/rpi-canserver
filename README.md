@@ -9,7 +9,7 @@ Allow can_reader to automatically bring can network link up/down:
 Run `sudo visudo` and add this to the bottom of the file:
 ```
 # Allow bringing up/down can network
-%users ALL = NOPASSWD: /sbin/ip
+%users ALL = NOPASSWD: /sbin/ip link set can*
 ```
 
 Add the following to the end of `/boot/firmware/usercfg.txt`:
@@ -20,7 +20,7 @@ dtoverlay=mcp2515-can1,oscillator=16000000,interrupt=24
 dtoverlay=spi-bcm2835-overlay
 ```
 
-Ensure you have python3 and pip, then: `pip3 install python-can`
+Ensure you have python3 and pip, then: `pip3 install -r requirements.txt`
 
 ## Configuration:
 

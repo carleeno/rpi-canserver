@@ -36,9 +36,6 @@ def main():
     try:
         # future (blocking) web_server.run() will go here. for now we sleep.
         while True:
-            log.debug(
-                f"log buffers: {can0_reader.logger_out.qsize()}, {can1_reader.logger_out.qsize()}"
-            )
             sleep(10)
     except KeyboardInterrupt:
         log.warning("Keyboard interrupt detected.")

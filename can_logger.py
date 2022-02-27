@@ -4,7 +4,8 @@ import signal
 from datetime import datetime
 from multiprocessing import Process
 
-from can import ASCWriter, Message
+from can import ASCWriter
+from faster_fifo import Empty
 
 from can_reader import CanReader
 
@@ -14,6 +15,7 @@ class CanLogger:
         self.log_path = log_path.rstrip("/")
         os.makedirs(log_path, exist_ok=True)
 
+        self.__attached_reader = reader
         self.__message_queue = reader.logger_out
         if reader.bus_name:
             self.__file_suffix = reader.bus_name
@@ -26,8 +28,12 @@ class CanLogger:
     def __write_thread(self):
         try:
             while True:
-                msg: Message = self.__message_queue.get()
-                self.__asc_writer.on_message_received(msg)
+                try:
+                    messages = self.__message_queue.get_many()
+                except Empty:
+                    continue
+                for msg in messages:
+                    self.__asc_writer.on_message_received(msg)
         except Exception as e:
             self.__log.exception(e)
 
@@ -47,6 +53,7 @@ class CanLogger:
         self.__logger_thread = Process(target=self.__write_thread)
         self.__logger_thread.start()
         signal.signal(signal.SIGINT, s)
+        self.__attached_reader.logger_running = True
         self.running = True
         self.__log.info(f"Started log: {self.asc_file_path}")
 
@@ -56,6 +63,7 @@ class CanLogger:
             self.__log.warning("Logging already stopped.")
             return
         self.__log.debug("Stopping logger...")
+        self.__attached_reader.logger_running = False
         self.__logger_thread.kill()
         self.__asc_writer.stop()
         self.running = False

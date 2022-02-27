@@ -1,11 +1,44 @@
 import logging
 import os
 import signal
-from multiprocessing import Process, Queue
-from queue import Full
+from datetime import datetime
+from multiprocessing import Process
 
 import can
 import cantools
+from faster_fifo import Empty, Full, Queue
+
+
+class FPSCounter:
+    def __init__(self, name: str, log_interval: float = 60.0):
+        self._log_interval = log_interval
+        self._log = logging.getLogger(name)
+        self._counter = 0
+        self._last_count = 0
+        self._last_log_time = datetime.now().timestamp()
+
+    def _interval_elapsed(self):
+        self._counter += 1
+        now = datetime.now().timestamp()
+        self._period = now - self._last_log_time
+        if self._period >= self._log_interval:
+            self._last_count = self._counter
+            self._last_log_time = now
+            self._counter = 0
+            return True
+        return False
+
+    def count(self):
+        if self._interval_elapsed():
+            self._log.debug(f"Average FPS: {self._last_count/self._period:.0f}")
+
+
+class DropCounter(FPSCounter):
+    def count(self):
+        if self._interval_elapsed():
+            self._log.warning(
+                f"Dropped {self._last_count} frames in {self._period:.0f}s"
+            )
 
 
 class CanReader:
@@ -15,12 +48,15 @@ class CanReader:
         Args:
             channel: can0 or can1 (if you have a pican duo)
         """
-        self.__decode_buffer = Queue(1000)
-        self.decoded_messages = Queue(100)
-        self.logger_out = Queue(10000)
+        self.__decode_buffer = Queue()
+        self.decoded_messages = Queue()
+        self.logger_out = Queue()
+        self.logger_running = False
 
-        self.__last_60s_msg_count = 0
-        self.__last_msg_count_time = 0.0
+        self.__rx_fps = FPSCounter(f"{channel}_rx")
+        self.__decode_fps = FPSCounter(f"{channel}_decode")
+        self.__dropped_logger = DropCounter(f"{channel}_dropped_logger")
+        self.__dropped_decoder = DropCounter(f"{channel}_dropped_decoder")
 
         self.channel = channel
         self.running = False
@@ -38,32 +74,35 @@ class CanReader:
     def __write_to_queues(self):
         try:
             while True:
-                message = self.__safe_can_rx()
-                if not message:
-                    continue
+                message_buffer = []
+                while len(message_buffer) < 100:
+                    message = self.__safe_can_rx()
+                    if message:
+                        message_buffer.append(message)
+                        self.__rx_fps.count()
                 try:
-                    self.__decode_buffer.put_nowait(message)
+                    self.__decode_buffer.put_many_nowait(message_buffer)
                 except Full:
-                    pass
+                    if self.__decode_enabled:
+                        for m in message_buffer:
+                            self.__dropped_decoder.count()
                 try:
-                    self.logger_out.put_nowait(message)
+                    self.logger_out.put_many_nowait(message_buffer)
                 except Full:
-                    pass
-                self.__log_fps(message.timestamp)
+                    if self.logger_running:
+                        for m in message_buffer:
+                            self.__dropped_logger.count()
         except Exception as e:
             self.__log.exception(e)
 
-    def __log_fps(self, msg_ts):
-        self.__last_60s_msg_count += 1
-        if msg_ts > self.__last_msg_count_time + 60:
-            self.__log.debug(f"Avg. FPS: {self.__last_60s_msg_count/60:.2f}")
-            self.__last_60s_msg_count = 0
-            self.__last_msg_count_time = msg_ts
-
     def __decoder_task(self):
         while True:
-            message = self.__decode_buffer.get()
-            self.__decode(message)
+            try:
+                messages = self.__decode_buffer.get_many()
+            except Empty:
+                continue
+            for message in messages:
+                self.__decode(message)
 
     def __decode(self, message: can.Message):
         if message.arbitration_id not in self.__decode_filter:
@@ -92,6 +131,8 @@ class CanReader:
                 self.__failed_messages.append(db_msg.name)
                 self.__log.warn(f"Failed to decode {db_msg.name}: {e}")
             return
+
+        self.__decode_fps.count()
         try:
             self.decoded_messages.put_nowait(
                 {
