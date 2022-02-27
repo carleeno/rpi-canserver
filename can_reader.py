@@ -193,10 +193,10 @@ class CanReader:
         if self.__decode_enabled:
             self.__failed_messages = []
             self.__last_decoded_time = {}
-            self.__decode_thread = Process(target=self.__decoder_task)
+            self.__decode_thread = Process(target=self.__decoder_task, daemon=True)
             self.__decode_thread.start()
 
-        self.__queue_write_thread = Process(target=self.__write_to_queues)
+        self.__queue_write_thread = Process(target=self.__write_to_queues, daemon=True)
         self.__queue_write_thread.start()
         signal.signal(signal.SIGINT, s)
         self.running = True

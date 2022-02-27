@@ -50,7 +50,7 @@ class CanLogger:
 
         s = signal.signal(signal.SIGINT, signal.SIG_IGN)
         self.__asc_writer = ASCWriter(self.asc_file_path)
-        self.__logger_thread = Process(target=self.__write_thread)
+        self.__logger_thread = Process(target=self.__write_thread, daemon=True)
         self.__logger_thread.start()
         signal.signal(signal.SIGINT, s)
         self.__attached_reader.logger_running_pipe.send(True)
