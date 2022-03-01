@@ -1,11 +1,12 @@
 import logging
 
+from faster_fifo import Queue
+
 import config as cfg
 import web_server
 from can_logger import CanLogger
 from can_reader import CanReader
 from logging_setup import setup_logging
-
 
 setup_logging()
 log = logging.getLogger("canserver.main")
@@ -13,15 +14,17 @@ log = logging.getLogger("canserver.main")
 
 class CanServer:
     def __init__(self) -> None:
-        self.can0_reader = CanReader(channel="can0")
+        self.stats_queue = Queue()
+        self.can0_reader = CanReader(channel="can0", stats_queue=self.stats_queue)
         self.can0_reader.setup_decoding(
             cfg.can0_dbc, cfg.can0_bus, cfg.can0_filter, cfg.decode_interval
         )
         web_server.reader_queues.append(self.can0_reader.decoded_messages)
+        web_server.stats_queue = self.stats_queue
         self.can0_logger = CanLogger(self.can0_reader)
 
         if cfg.pican_duo:
-            self.can1_reader = CanReader(channel="can1")
+            self.can1_reader = CanReader(channel="can1", stats_queue=self.stats_queue)
             self.can1_reader.setup_decoding(
                 cfg.can1_dbc, cfg.can1_bus, cfg.can1_filter, cfg.decode_interval
             )

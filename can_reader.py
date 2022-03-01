@@ -10,24 +10,32 @@ from faster_fifo import Empty, Full, Queue
 
 
 class FPSCounter:
-    def __init__(self, name: str, log_interval: float = 60.0):
-        self._log_interval = log_interval
-        self._log = logging.getLogger(name)
+    def __init__(self, name: str, out_queue: Queue, put_interval: float = 10.0):
+        self._put_interval = put_interval
+        self._name = name
+        self._out_queue = out_queue
         self._counter = 0
-        self._last_log_time = datetime.now().timestamp()
+        self._last_put_time = datetime.now().timestamp()
 
     def _interval_elapsed(self):
         now = datetime.now().timestamp()
-        self._period = now - self._last_log_time
-        if self._period >= self._log_interval:
-            self._last_log_time = now
+        self._period = now - self._last_put_time
+        if self._period >= self._put_interval:
+            self._last_put_time = now
             return True
         return False
+
+    def _put_stats(self, stat):
+        try:
+            self._out_queue.put_nowait({self._name: stat})
+        except Full:
+            pass
 
     def count(self, frames: int = 1):
         self._counter += frames
         if self._interval_elapsed():
-            self._log.debug(f"Average FPS: {self._counter/self._period:.0f}")
+            avg_fps = self._counter / self._period
+            self._put_stats(avg_fps)
             self._counter = 0
 
 
@@ -35,12 +43,12 @@ class DropCounter(FPSCounter):
     def count(self, frames: int = 1):
         self._counter += frames
         if self._interval_elapsed():
-            self._log.warning(f"Dropped {self._counter} frames in {self._period:.0f}s")
+            self._put_stats(self._counter)
             self._counter = 0
 
 
 class CanReader:
-    def __init__(self, channel: str = "can0"):
+    def __init__(self, channel: str, stats_queue: Queue):
         """Create can reader instance. Nothing happens until you call start_reading().
 
         Args:
@@ -52,10 +60,11 @@ class CanReader:
         self.logger_running_pipe, self.__logger_running_pipe = Pipe()
         self.logger_running_pipe.send(False)
 
-        self.__rx_fps = FPSCounter(f"{channel}_rx")
-        self.__decode_fps = FPSCounter(f"{channel}_decode")
-        self.__dropped_logger = DropCounter(f"{channel}_dropped_logger")
-        self.__dropped_decoder = DropCounter(f"{channel}_dropped_decoder")
+        sq = stats_queue
+        self.__rx_fps = FPSCounter(f"{channel}_rx", sq)
+        self.__decode_fps = FPSCounter(f"{channel}_decode", sq)
+        self.__dropped_logger = DropCounter(f"{channel}_dropped_logger", sq)
+        self.__dropped_decoder = DropCounter(f"{channel}_dropped_decoder", sq)
 
         self.channel = channel
         self.running = False
