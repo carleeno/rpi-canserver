@@ -19,7 +19,7 @@ devnull = open("/dev/null", "w")
 
 
 class CanServer:
-    def __init__(self, address="127.0.0.1:8000", batch_size=50) -> None:
+    def __init__(self, address="10.42.0.1:8000", batch_size=100) -> None:
         self.server_bind = address
         self.server_address = f"http://{address}"
         self.batch_size = batch_size
@@ -42,7 +42,7 @@ class CanServer:
         self.sio.connect(
             self.server_address,
             headers={"X-Username": "canserver.main"},
-            wait_timeout=5,
+            wait_timeout=60,
         )
         self.client_procs.append(
             subprocess.Popen(

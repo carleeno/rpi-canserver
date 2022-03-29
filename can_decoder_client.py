@@ -66,7 +66,7 @@ class CanDecoder:
         self.sio.connect(
             self.server_address,
             headers={"X-Username": "can_decoder"},
-            wait_timeout=5,
+            wait_timeout=60,
         )
         self.sio.emit("enter_room", "raw_can")
         self.sio.wait()

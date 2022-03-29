@@ -51,7 +51,7 @@ class CanLogger:
         self.sio.connect(
             self.server_address,
             headers={"X-Username": f"can_logger.{self.channel}"},
-            wait_timeout=5,
+            wait_timeout=60,
         )
         self.sio.emit("enter_room", "raw_can")
         self.sio.wait()

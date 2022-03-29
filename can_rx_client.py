@@ -54,7 +54,11 @@ def main(args):
         sys.exit(1)
 
     try:
-        sio.connect(server, headers={"X-Username": f"can_rx_client.{channel}"})
+        sio.connect(
+            server,
+            headers={"X-Username": f"can_rx_client.{channel}"},
+            wait_timeout=60,
+        )
     except Exception as e:
         logger.exception(e)
         sys.exit(1)
