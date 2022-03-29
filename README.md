@@ -20,7 +20,13 @@ dtoverlay=mcp2515-can1,oscillator=16000000,interrupt=24
 dtoverlay=spi-bcm2835-overlay
 ```
 
-Ensure you have python3 and pip, then: `pip3 install -r requirements.txt`
+Ensure you have python3 and pip, then:
+
+`python3 -m venv venv`
+
+`source venv/bin/activate`
+
+`pip install -r requirements.txt` (ok to ignore building wheel failures)
 
 ## Configuration:
 
@@ -34,5 +40,7 @@ If you are decoding, it's recommended to set up a filter. Raw messages are not f
 However by filtering which messages are decoded, you'll save considerable CPU usage.
 
 ## Running:
+
+`source venv/bin/activate`
 
 `python3 main.py`

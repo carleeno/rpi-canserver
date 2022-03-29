@@ -27,7 +27,7 @@ class FileFormatter(logging.Formatter):
 class ConsoleFormatter(logging.Formatter):
     def format(self, record):
         color = LEVEL_COLORS.get(record.levelno)
-        format = f"{color}%(message)s{RESET}"
+        format = f"(%(name)s) {color}%(message)s{RESET}"
         formatter = logging.Formatter(format)
         return formatter.format(record)
 
