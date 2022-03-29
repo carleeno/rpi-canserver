@@ -19,9 +19,10 @@ devnull = open("/dev/null", "w")
 
 
 class CanServer:
-    def __init__(self, address="127.0.0.1:8000") -> None:
+    def __init__(self, address="127.0.0.1:8000", batch_size=50) -> None:
         self.server_bind = address
         self.server_address = f"http://{address}"
+        self.batch_size = batch_size
         self.server_proc = None
         self.client_procs = []
         self.sio = socketio.Client()
@@ -46,7 +47,7 @@ class CanServer:
         self.client_procs.append(
             subprocess.Popen(
                 shlex.split(
-                    f"python can_rx_client.py -s {self.server_address} --batch_size 50"
+                    f"python can_rx_client.py -s {self.server_address} --batch_size {self.batch_size}"
                 )
             )
         )
@@ -64,7 +65,7 @@ class CanServer:
             self.client_procs.append(
                 subprocess.Popen(
                     shlex.split(
-                        f"python can_rx_client.py -c can1 -s {self.server_address} --batch_size 50"
+                        f"python can_rx_client.py -c can1 -s {self.server_address} --batch_size {self.batch_size}"
                     )
                 )
             )
@@ -85,12 +86,18 @@ class CanServer:
         for proc in self.client_procs:
             if send_sigint:
                 proc.send_signal(signal.SIGINT)
-            proc.wait(timeout=5)
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                proc.kill()
         if self.sio.connected:
             self.sio.disconnect()
         if send_sigint:
             self.server_proc.send_signal(signal.SIGINT)
-        self.server_proc.wait(timeout=5)
+        try:
+            self.server_proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            self.server_proc.kill()
 
     def _system_stats(self):
         system_stats = {}

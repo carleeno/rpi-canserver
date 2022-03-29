@@ -70,7 +70,7 @@ def main(args):
         while True:
             message = bus.recv()
             if message:
-                frame = tools.msg_to_json(message)
+                frame = tools.serialize_msg(message)
                 batch.append(frame)
                 frame_count += 1
 
@@ -80,11 +80,12 @@ def main(args):
                 batch = []
 
             if frame_count >= 10000:
-                delta = time() - start
+                now = time()
+                delta = now - start
                 fps = int(frame_count / delta)
                 if sio.connected:
                     sio.emit("broadcast_stats", {"fps": {f"{channel} rx": fps}})
-                start = time()
+                start = now
                 frame_count = 0
 
     except KeyboardInterrupt:

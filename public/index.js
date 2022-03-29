@@ -21,8 +21,9 @@ sio.on('connect_error', (e) => {
 sio.on('disconnect', () => {
     console.log('disconnected');
     document.getElementById("status").innerHTML = 'Disconnected';
-    clearTable(document.getElementById('fps_stats'))
-    clearTable(document.getElementById('system_stats'))
+    clearTable(document.getElementById('fps_stats'));
+    clearTable(document.getElementById('system_stats'));
+    clearTable(document.getElementById('vehicle_stats'));
 });
 
 sio.on('message', (message) => {
@@ -78,14 +79,14 @@ function update_system_stats(stats) {
 function update_vehicle_stats(stats) {
     table = document.getElementById('vehicle_stats');
     for (let msg in stats) {
-        for (let sig in msg.data) {
+        for (let sig in stats[msg]) {
             row = document.getElementById(`veh_stat_${msg}_${sig}`);
             if (row == null) {
                 row = document.createElement("tr");
                 row.id = `veh_stat_${msg}_${sig}`;
                 table.tBodies[0].appendChild(row);
             }
-            row.innerHTML = `<td>${msg}</td><td>${sig}</td><td>${msg[sig]}</td>`;
+            row.innerHTML = `<td>${msg}</td><td>${sig}</td><td>${Math.round(stats[msg][sig] * 100) / 100}</td>`;
         }
     }
     sortTable(table);

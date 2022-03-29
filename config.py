@@ -2,6 +2,8 @@
 
 dbc_file = "Model3CAN.dbc"
 
+decode_interval = 0.5
+
 # Message names as found in the dbc file:
 can_filter = [
     "ID04FGPSLatLong",

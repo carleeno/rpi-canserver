@@ -5,9 +5,8 @@ from datetime import datetime
 from time import sleep, time
 
 import socketio
-from can import ASCWriter, Message
+from can import ASCWriter
 
-import tools
 from logging_setup import setup_logging
 
 setup_logging()
@@ -96,7 +95,8 @@ class CanLogger:
     def _frame_counter(self, count):
         self.frame_count += count
         if self.frame_count >= 10000:
-            delta = time() - self.count_start
+            now = time()
+            delta = now - self.count_start
             fps = int(self.frame_count / delta)
             if self.sio.connected:
                 self.sio.emit(
@@ -106,7 +106,7 @@ class CanLogger:
                         "system": {f"{self.channel} log": self.file_name},
                     },
                 )
-            self.count_start = time()
+            self.count_start = now
             self.frame_count = 0
 
     def _callbacks(self):
@@ -130,9 +130,8 @@ class CanLogger:
             if not batch:
                 return
 
-            for msg in batch:
-                msg = tools.json_to_msg(msg)
-                self.writer.on_message_received(msg)
+            for ts, msg in batch:
+                self.writer.log_event(msg, ts)
 
             self._frame_counter(len(batch))
 

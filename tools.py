@@ -1,6 +1,8 @@
 import collections.abc
+from typing import Tuple
 
-from can import Message
+from can import ASCWriter, Message
+from can.util import channel2int
 
 """
 Message has no __dict__ attr, meaning we need to json serialize it ourselves.
@@ -18,43 +20,67 @@ Attrs:
     bitrate_switch: bool
     error_state_indicator: bool
 
-This also shortens the attr keys to make messages smaller
 """
-_key_map = {
-    "ts": "timestamp",
-    "id": "arbitration_id",
-    "ext": "is_extended_id",
-    "rmt": "is_remote_frame",
-    "err": "is_error_frame",
-    "ch": "channel",
-    "dlc": "dlc",
-    "dt": "data",
-    "fd": "is_fd",
-    "rx": "is_rx",
-    "btr": "bitrate_switch",
-    "esi": "error_state_indicator",
-}
 
 
-def msg_to_json(msg: Message) -> dict:
-    dict_message = {}
-    for key, attr_name in _key_map.items():
-        if key == "dt" and (
-            isinstance(msg.data, bytearray) or isinstance(msg.data, bytes)
-        ):
-            dict_message[key] = int.from_bytes(msg.data, "little")
-        else:
-            dict_message[key] = getattr(msg, attr_name)
-    return dict_message
+def serialize_msg(msg: Message) -> Tuple[float, str]:
+    serialized = ASCWriter.FORMAT_MESSAGE.format(
+        channel=channel2int(msg.channel),
+        id=f"{msg.arbitration_id:X}",
+        dir="Rx",
+        dtype=f"d {msg.dlc:x}",
+        data=" ".join([f"{byte:02X}" for byte in msg.data]),
+    )
+    return (msg.timestamp, serialized)
 
 
-def json_to_msg(json_msg: dict) -> Message:
-    msg = Message()
-    for key, value in json_msg.items():
-        if key == "dt" and isinstance(value, int):
-            value = value.to_bytes(json_msg["dlc"], "little")
-        setattr(msg, _key_map[key], value)
+def deserialize_msg(msg: Tuple[float, str]) -> Message:
+    timestamp = msg[0]
+    serialized = msg[1]
+    channel, rest_of_message = serialized.split(None, 1)
+    if channel.isdigit():
+        channel = int(channel) - 1
+    msg_kwargs = {"timestamp": timestamp, "channel": channel}
+    msg = _process_classic_can_frame(rest_of_message, msg_kwargs)
     return msg
+
+
+def _extract_can_id(str_can_id: str, msg_kwargs) -> None:
+    if str_can_id[-1:].lower() == "x":
+        msg_kwargs["is_extended_id"] = True
+        can_id = int(str_can_id[0:-1], 16)
+    else:
+        msg_kwargs["is_extended_id"] = False
+        can_id = int(str_can_id, 16)
+    msg_kwargs["arbitration_id"] = can_id
+
+
+def _process_data_string(data_str: str, data_length: int, msg_kwargs) -> None:
+    frame = bytearray()
+    data = data_str.split()
+    for byte in data[:data_length]:
+        frame.append(int(byte, 16))
+    msg_kwargs["data"] = frame
+
+
+def _process_classic_can_frame(line: str, msg_kwargs) -> Message:
+    abr_id_str, direction, rest_of_message = line.split(None, 2)
+    msg_kwargs["is_rx"] = direction == "Rx"
+    _extract_can_id(abr_id_str, msg_kwargs)
+
+    try:
+        # There is data after DLC
+        _, dlc_str, data = rest_of_message.split(None, 2)
+    except ValueError:
+        # No data after DLC
+        _, dlc_str = rest_of_message.split(None, 1)
+        data = ""
+
+    dlc = int(dlc_str, 16)
+    msg_kwargs["dlc"] = dlc
+    _process_data_string(data, dlc, msg_kwargs)
+
+    return Message(**msg_kwargs)
 
 
 def deep_update(source, overrides):
