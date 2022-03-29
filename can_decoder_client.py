@@ -135,8 +135,8 @@ class CanDecoder:
 
 
 if __name__ == "__main__":
-    can_decoder = CanDecoder()
     try:
+        can_decoder = CanDecoder()
         can_decoder.run()
     except KeyboardInterrupt:
         pass
