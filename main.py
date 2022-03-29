@@ -15,11 +15,11 @@ from logging_setup import setup_logging
 setup_logging()
 logger = logging.getLogger("canserver.main")
 
-devnull = open("/dev/null", "w")
+server_stderr = open("logs/server.stderr.log", "w")
 
 
 class CanServer:
-    def __init__(self, address="10.42.0.1:8000", batch_size=100) -> None:
+    def __init__(self, address="10.42.0.1:5000", batch_size=100) -> None:
         self.server_bind = address
         self.server_address = f"http://{address}"
         self.batch_size = batch_size
@@ -35,8 +35,10 @@ class CanServer:
 
     def run(self):
         self.server_proc = subprocess.Popen(
-            shlex.split(f"gunicorn -k eventlet -w 1 -b {self.server_bind} server:app"),
-            stderr=devnull,
+            shlex.split(
+                f"gunicorn -k eventlet -w 1 -b {self.server_bind} --worker-tmp-dir /dev/shm server:app"
+            ),
+            stderr=server_stderr,
         )
         sleep(2)
         self.sio.connect(
@@ -148,13 +150,15 @@ def main():
     canserver = CanServer()
     try:
         canserver.run()
+        canserver.shutdown()
     except KeyboardInterrupt:
         logger.warning("Keyboard interrupt")
         canserver.shutdown(send_sigint=False)
-        return
     except Exception as e:
         logger.exception(e)
-    canserver.shutdown()
+        canserver.shutdown()
+    finally:
+        server_stderr.close()
 
 
 if __name__ == "__main__":

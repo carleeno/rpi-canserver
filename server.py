@@ -33,7 +33,7 @@ def disconnect(sid):
     with sio.session(sid) as s:
         username = s["username"]
 
-    logger.info(f"{username} disconnected")
+    logger.warning(f"{username} disconnected")
 
 
 @sio.event
