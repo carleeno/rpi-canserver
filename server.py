@@ -52,6 +52,11 @@ def broadcast_stats(sid, data):
 
 
 @sio.event
+def broadcast_vehicle_stats(sid, data):
+    sio.emit("vehicle_stats", data)
+
+
+@sio.event
 def broadcast_start_logging(sid):
     sio.emit("start_logging")
     sio.send("Logging start request sent")

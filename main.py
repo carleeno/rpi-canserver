@@ -55,6 +55,11 @@ class CanServer:
                 shlex.split(f"python can_logger_client.py -s {self.server_address}")
             )
         )
+        self.client_procs.append(
+            subprocess.Popen(
+                shlex.split(f"python can_decoder_client.py -s {self.server_address}")
+            )
+        )
         if cfg.pican_duo:
             self.client_procs.append(
                 subprocess.Popen(

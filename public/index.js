@@ -43,6 +43,10 @@ sio.on('stats', (data) => {
     }
 });
 
+sio.on('vehicle_stats', (data) => {
+    update_vehicle_stats(data);
+})
+
 function update_fps_stats(fps) {
     table = document.getElementById('fps_stats');
     for (let channel in fps) {
@@ -67,6 +71,22 @@ function update_system_stats(stats) {
             table.tBodies[0].appendChild(row);
         }
         row.innerHTML = `<td>${item}</td><td>${stats[item]}</td>`;
+    }
+    sortTable(table);
+}
+
+function update_vehicle_stats(stats) {
+    table = document.getElementById('vehicle_stats');
+    for (let msg in stats) {
+        for (let sig in msg.data) {
+            row = document.getElementById(`veh_stat_${msg}_${sig}`);
+            if (row == null) {
+                row = document.createElement("tr");
+                row.id = `veh_stat_${msg}_${sig}`;
+                table.tBodies[0].appendChild(row);
+            }
+            row.innerHTML = `<td>${msg}</td><td>${sig}</td><td>${msg[sig]}</td>`;
+        }
     }
     sortTable(table);
 }
