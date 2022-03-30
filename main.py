@@ -20,13 +20,26 @@ server_stderr = open("/tmp/canserver-logs/server.stderr.log", "w")
 
 class CanServer:
     def __init__(self, address="10.42.0.1:5000", batch_size=100) -> None:
-        self.server_bind = address
-        self.server_address = f"http://{address}"
+        self.server_address = address
         self.batch_size = batch_size
         self.server_proc = None
         self.client_procs = []
         self.sio = socketio.Client()
         self._callbacks()
+
+        self.server_cmd = shlex.split(
+            f"gunicorn -k eventlet -w 1 -b {self.server_address} --worker-tmp-dir /dev/shm server:app"
+        )
+        self.rx_client_cmd = shlex.split(
+            f"python can_rx_client.py -s http://{self.server_address} --batch_size {self.batch_size}"
+        )
+        self.logger_client_cmd = shlex.split(
+            f"python can_logger_client.py -s http://{self.server_address}"
+        )
+        self.decoder_client_cmd = shlex.split(
+            f"python can_decoder_client.py -s http://{self.server_address}"
+        )
+
         self.stats = {"last_logged": int(time())}
         psutil.cpu_percent()  # initial call to set start of interval
         self.rolling_disk_io = [(time(), psutil.disk_io_counters(nowrap=True))]
@@ -36,9 +49,7 @@ class CanServer:
 
     def run(self):
         self.server_proc = subprocess.Popen(
-            shlex.split(
-                f"gunicorn -k eventlet -w 1 -b {self.server_bind} --worker-tmp-dir /dev/shm server:app"
-            ),
+            self.server_cmd,
             stderr=server_stderr,
         )
         sleep(2)
@@ -47,37 +58,15 @@ class CanServer:
             headers={"X-Username": "canserver.main"},
             wait_timeout=60,
         )
-        self.client_procs.append(
-            subprocess.Popen(
-                shlex.split(
-                    f"python can_rx_client.py -s {self.server_address} --batch_size {self.batch_size}"
-                )
-            )
-        )
-        self.client_procs.append(
-            subprocess.Popen(
-                shlex.split(f"python can_logger_client.py -s {self.server_address}")
-            )
-        )
-        self.client_procs.append(
-            subprocess.Popen(
-                shlex.split(f"python can_decoder_client.py -s {self.server_address}")
-            )
-        )
+        self.client_procs.append(subprocess.Popen(self.rx_client_cmd))
+        self.client_procs.append(subprocess.Popen(self.logger_client_cmd))
+        self.client_procs.append(subprocess.Popen(self.decoder_client_cmd))
         if cfg.pican_duo:
             self.client_procs.append(
-                subprocess.Popen(
-                    shlex.split(
-                        f"python can_rx_client.py -c can1 -s {self.server_address} --batch_size {self.batch_size}"
-                    )
-                )
+                subprocess.Popen(self.rx_client_cmd + ["-c", "can1"])
             )
             self.client_procs.append(
-                subprocess.Popen(
-                    shlex.split(
-                        f"python can_logger_client.py -c can1 -s {self.server_address}"
-                    )
-                )
+                subprocess.Popen(self.logger_client_cmd + ["-c", "can1"])
             )
         while not self.killer.kill_now:
             self._system_stats()
