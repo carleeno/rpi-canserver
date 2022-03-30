@@ -56,30 +56,46 @@ class CanLogger:
         self.log_dir = args.log_dir
 
     def run(self):
-        self.sio.connect(
-            self.server_address,
-            headers={"X-Username": f"can_logger.{self.channel}"},
-            wait_timeout=60,
-        )
-        self.red_sub.subscribe(f"{self.channel}_frame_batch")
-        for msg in self.red_sub.listen():
-            if not self.logging:
-                continue
-            if msg and isinstance(msg, dict) and msg["type"] == "message":
-                pickled_batch = msg.get("data")
-                batch = pickle.loads(pickled_batch)
-                self._on_frame_batch(batch)
-        self.sio.wait()
+        try:
+            self.sio.connect(
+                self.server_address,
+                headers={"X-Username": f"can_logger.{self.channel}"},
+                wait_timeout=60,
+            )
+            self.red_sub.subscribe(
+                **{f"{self.channel}_frame_batch": self._pubsub_handler}
+            )
+            self._pubsub_thread = self.red_sub.run_in_thread(daemon=True)
+            while True:
+                sleep(1)
+                self._stats_publisher()
+        except KeyboardInterrupt:
+            pass
+        except Exception as e:
+            self.logger.exception(e)
+        finally:
+            self.shutdown()
 
     def shutdown(self):
         self._stop_logging()
+        self._pubsub_thread.stop()
+
+    def _pubsub_handler(self, msg):
+        if not self.logging:
+            return
+        if msg and isinstance(msg, dict) and msg["type"] == "message":
+            pickled_batch = msg.get("data")
+            batch = pickle.loads(pickled_batch)
+            self._on_frame_batch(batch)
+
+    def _on_frame_batch(self, batch):
+        for msg in batch:
+            self.writer.on_message_received(msg)
+
+        self.frame_count += len(batch)
 
     def _start_logging(self):
         if self.logging:
-            self.sio.emit(
-                "broadcast_stats",
-                {"system": {f"{self.channel} log": self.file_name}},
-            )
             return
         start_time = datetime.now()
         self.file_name = start_time.strftime("%Y-%m-%d_%H.%M.%S_") + self.channel
@@ -89,46 +105,30 @@ class CanLogger:
         self.count_start = time()
         self.frame_count = 0
         self.logging = True
-        self.sio.emit(
-            "broadcast_stats", {"system": {f"{self.channel} log": self.file_name}}
-        )
 
     def _stop_logging(self):
         if self.logging:
             self.logging = False
             sleep(1)
             self.writer.stop()
+
+    def _stats_publisher(self):
+        now = time()
+        delta = now - self.count_start
+        fps = int(self.frame_count / delta)
         if self.sio.connected:
             self.sio.emit(
                 "broadcast_stats",
                 {
-                    "fps": {f"{self.channel} log": 0},
-                    "system": {f"{self.channel} log": None},
+                    "fps": {f"{self.channel} log": fps},
+                    "system": {
+                        f"{self.channel} log file": self.file_name,
+                        f"{self.channel} logging": self.logging,
+                    },
                 },
             )
-
-    def _on_frame_batch(self, batch):
-        for msg in batch:
-            self.writer.on_message_received(msg)
-
-        self._frame_counter(len(batch))
-
-    def _frame_counter(self, count):
-        self.frame_count += count
-        if self.frame_count >= 10000:
-            now = time()
-            delta = now - self.count_start
-            fps = int(self.frame_count / delta)
-            if self.sio.connected:
-                self.sio.emit(
-                    "broadcast_stats",
-                    {
-                        "fps": {f"{self.channel} log": fps},
-                        "system": {f"{self.channel} log": self.file_name},
-                    },
-                )
-            self.count_start = now
-            self.frame_count = 0
+        self.count_start = now
+        self.frame_count = 0
 
     def _callbacks(self):
         @self.sio.event
@@ -157,12 +157,9 @@ class CanLogger:
 
 
 if __name__ == "__main__":
-    can_logger = CanLogger()
     try:
-        can_logger.run()
-    except KeyboardInterrupt:
-        pass
+        can_logger = CanLogger()
     except Exception as e:
-        can_logger.logger.exception(e)
-    finally:
-        can_logger.shutdown()
+        logging.exception(e)
+
+    can_logger.run()

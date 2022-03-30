@@ -1,7 +1,7 @@
 import logging
 import pickle
 from argparse import ArgumentParser
-from time import time
+from time import time, sleep
 
 import cantools
 import redis
@@ -9,7 +9,6 @@ import socketio
 from can import Message
 
 import config as cfg
-import tools
 from logging_setup import setup_logging
 
 setup_logging()
@@ -67,19 +66,32 @@ class CanDecoder:
         self.logger.debug(f"Decoding {len(self._decode_filter)} filtered messages.")
 
     def run(self):
-        self.sio.connect(
-            self.server_address,
-            headers={"X-Username": "can_decoder"},
-            wait_timeout=60,
-        )
-        self.red_sub.subscribe("can0_frame_batch")
-        self.red_sub.subscribe("can1_frame_batch")
-        for msg in self.red_sub.listen():
-            if msg and isinstance(msg, dict) and msg["type"] == "message":
-                pickled_batch = msg.get("data")
-                batch = pickle.loads(pickled_batch)
-                self._on_frame_batch(batch)
-        self.sio.wait()
+        try:
+            self.sio.connect(
+                self.server_address,
+                headers={"X-Username": "can_decoder"},
+                wait_timeout=60,
+            )
+            self.red_sub.psubscribe(**{"can*_frame_batch": self._pubsub_handler})
+            self._pubsub_thread = self.red_sub.run_in_thread(daemon=True)
+            while True:
+                sleep(1)
+                self._stats_publisher()
+        except KeyboardInterrupt:
+            pass
+        except Exception as e:
+            self.logger.exception(e)
+        finally:
+            self.shutdown()
+
+    def shutdown(self):
+        self._pubsub_thread.stop()
+
+    def _pubsub_handler(self, msg):
+        if msg and isinstance(msg, dict) and msg["type"] == "pmessage":
+            pickled_batch = msg.get("data")
+            batch = pickle.loads(pickled_batch)
+            self._on_frame_batch(batch)
 
     def _on_frame_batch(self, batch):
         self._msg_batch.extend(batch)
@@ -95,7 +107,7 @@ class CanDecoder:
             if self.sio.connected and decoded_batch:
                 self.sio.emit("broadcast_vehicle_stats", decoded_batch)
 
-            self._frame_counter(len(decoded_batch))
+            self.frame_count += len(decoded_batch)
             self._msg_batch = []
             self._batch_start = now
 
@@ -124,16 +136,14 @@ class CanDecoder:
 
         return {message.arbitration_id: decoded_data}
 
-    def _frame_counter(self, count):
-        self.frame_count += count
-        if self.frame_count >= 100:
-            now = time()
-            delta = now - self.count_start
-            fps = int(self.frame_count / delta)
-            if self.sio.connected:
-                self.sio.emit("broadcast_stats", {"fps": {"decoder": fps}})
-            self.count_start = now
-            self.frame_count = 0
+    def _stats_publisher(self):
+        now = time()
+        delta = now - self.count_start
+        fps = int(self.frame_count / delta)
+        if self.sio.connected:
+            self.sio.emit("broadcast_stats", {"fps": {"decoder": fps}})
+        self.count_start = now
+        self.frame_count = 0
 
     def _callbacks(self):
         @self.sio.event
@@ -144,8 +154,7 @@ class CanDecoder:
 if __name__ == "__main__":
     try:
         can_decoder = CanDecoder()
-        can_decoder.run()
-    except KeyboardInterrupt:
-        pass
     except Exception as e:
-        can_decoder.logger.exception(e)
+        logging.exception(e)
+
+    can_decoder.run()

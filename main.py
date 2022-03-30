@@ -72,7 +72,7 @@ class CanServer:
             )
         while not self.killer.kill_now:
             self._system_stats()
-            sleep(2)
+            sleep(1)
 
     def shutdown(self, send_sigint=True):
         logger.info("Shutting down")
