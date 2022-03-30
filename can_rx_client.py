@@ -1,5 +1,4 @@
 import logging
-import os
 import sys
 from argparse import ArgumentParser
 from time import time
@@ -63,7 +62,6 @@ def main(args):
         logger.exception(e)
         sys.exit(1)
 
-    os.system(f"sudo /sbin/ip link set {channel} up type can bitrate 500000")
     bus = can.interface.Bus(channel=channel, bustype=bustype)
     logger.debug(f"{channel} bus started")
 
@@ -97,7 +95,6 @@ def main(args):
     except Exception as e:
         logger.exception(e)
     finally:
-        os.system(f"sudo /sbin/ip link set {channel} down")
         logger.debug(f"{channel} stopped")
         sio.disconnect()
 

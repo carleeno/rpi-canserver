@@ -32,7 +32,7 @@ class ConsoleFormatter(logging.Formatter):
         return formatter.format(record)
 
 
-def setup_logging(log_path: str = "logs/canserver.log") -> logging.Logger:
+def setup_logging(log_path: str = "/logs/canserver.log") -> logging.Logger:
     """Call this to setup logging."""
     makedirs(path.dirname(log_path), exist_ok=True)
     with open(CONFIG_FILE) as log_config:

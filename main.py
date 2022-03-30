@@ -15,7 +15,7 @@ from logging_setup import setup_logging
 setup_logging()
 logger = logging.getLogger("canserver.main")
 
-server_stderr = open("logs/server.stderr.log", "w")
+server_stderr = open("/logs/server.stderr.log", "w")
 
 
 class CanServer:
@@ -32,6 +32,7 @@ class CanServer:
         self.rolling_disk_io = [(time(), psutil.disk_io_counters(nowrap=True))]
         self.disk_io_time_window = 30
         self.cpu_temp = CPUTemperature()
+        self.killer = tools.GracefulKiller()
 
     def run(self):
         self.server_proc = subprocess.Popen(
@@ -78,7 +79,7 @@ class CanServer:
                     )
                 )
             )
-        while True:
+        while not self.killer.kill_now:
             self._system_stats()
             sleep(2)
 

@@ -1,0 +1,10 @@
+version: "3.9"
+services:
+  main:
+    build: .
+    network_mode: host
+    volumes:
+      - /home/carlin/canserver-logs:/logs
+      - /etc/localtime:/etc/localtime
+      - /etc/timezone:/etc/timezone
+    stop_grace_period: 30s
