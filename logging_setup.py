@@ -27,12 +27,14 @@ class FileFormatter(logging.Formatter):
 class ConsoleFormatter(logging.Formatter):
     def format(self, record):
         color = LEVEL_COLORS.get(record.levelno)
-        format = f"{color}%(message)s{RESET}"
+        format = f"(%(name)s) {color}%(message)s{RESET}"
         formatter = logging.Formatter(format)
         return formatter.format(record)
 
 
-def setup_logging(log_path: str = "logs/canserver.log") -> logging.Logger:
+def setup_logging(
+    log_path: str = "/tmp/canserver-logs/canserver.log",
+) -> logging.Logger:
     """Call this to setup logging."""
     makedirs(path.dirname(log_path), exist_ok=True)
     with open(CONFIG_FILE) as log_config:

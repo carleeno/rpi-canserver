@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>RPI-Canserver</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <h1>RPI-Canserver</h1>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/3.0.4/socket.io.min.js"></script>
+    <script src="index.js"></script>
+
+    <h3 id="status">Disconnected</h3>
+    <input type="button" onclick="start_logging()" value="Start Logging">
+    <input type="button" onclick="stop_logging()" value="Stop Logging">
+    <h3>Last message:</h3>
+    <p id="last_message"></p>
+    <h3>Stats</h2>
+        <div id="stats">
+            <table id="fps_stats">
+                <thead>
+                    <tr>
+                        <th>Channel</th>
+                        <th>FPS</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+            <table id="system_stats">
+                <thead>
+                    <tr>
+                        <th colspan="2">System</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+            <table id="vehicle_stats">
+                <thead>
+                    <tr>
+                        <th>Message</th>
+                        <th>Signal</th>
+                        <th>Value</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+</body>
+
+</html>
