@@ -1,6 +1,6 @@
-import json
 import logging
 import os
+import pickle
 from argparse import ArgumentParser
 from datetime import datetime
 from time import sleep, time
@@ -19,9 +19,7 @@ class CanLogger:
         self.parse_args()
         self.logger = logging.getLogger(f"can_logger.{self.channel}")
         self.sio = socketio.Client()
-        self.red = redis.StrictRedis(
-            "localhost", 6379, charset="utf-8", decode_responses=True
-        )
+        self.red = redis.StrictRedis("localhost", 6379)
         self.red_sub = self.red.pubsub()
 
         self.log_dir = self.log_dir.rstrip("/")
@@ -65,9 +63,12 @@ class CanLogger:
         )
         self.red_sub.subscribe(f"{self.channel}_frame_batch")
         for msg in self.red_sub.listen():
+            if not self.logging:
+                continue
             if msg and isinstance(msg, dict) and msg["type"] == "message":
-                batch_str = msg.get("data")
-                self._on_frame_batch(batch_str)
+                pickled_batch = msg.get("data")
+                batch = pickle.loads(pickled_batch)
+                self._on_frame_batch(batch)
         self.sio.wait()
 
     def shutdown(self):
@@ -106,14 +107,9 @@ class CanLogger:
                 },
             )
 
-    def _on_frame_batch(self, batch_str):
-        if not self.logging:
-            return
-
-        batch = json.loads(batch_str)
-
-        for ts, msg in batch:
-            self.writer.log_event(msg, ts)
+    def _on_frame_batch(self, batch):
+        for msg in batch:
+            self.writer.on_message_received(msg)
 
         self._frame_counter(len(batch))
 

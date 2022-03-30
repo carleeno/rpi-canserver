@@ -1,5 +1,5 @@
-import json
 import logging
+import pickle
 from argparse import ArgumentParser
 from time import time
 
@@ -20,9 +20,7 @@ class CanDecoder:
         self._parse_args()
         self.logger = logging.getLogger("can_decoder")
         self.sio = socketio.Client()
-        self.red = redis.StrictRedis(
-            "localhost", 6379, charset="utf-8", decode_responses=True
-        )
+        self.red = redis.StrictRedis("localhost", 6379)
         self.red_sub = self.red.pubsub()
 
         self._setup_decoding()
@@ -78,12 +76,12 @@ class CanDecoder:
         self.red_sub.subscribe("can1_frame_batch")
         for msg in self.red_sub.listen():
             if msg and isinstance(msg, dict) and msg["type"] == "message":
-                batch_str = msg.get("data")
-                self._on_frame_batch(batch_str)
+                pickled_batch = msg.get("data")
+                batch = pickle.loads(pickled_batch)
+                self._on_frame_batch(batch)
         self.sio.wait()
 
-    def _on_frame_batch(self, batch_str):
-        batch = json.loads(batch_str)
+    def _on_frame_batch(self, batch):
         self._msg_batch.extend(batch)
         now = time()
         if now >= self._batch_start + self._batch_interval:
@@ -91,7 +89,6 @@ class CanDecoder:
             batch.reverse()
             decoded_batch = {}
             for msg in batch:
-                msg = tools.deserialize_msg(msg)
                 decoded = self._decode(msg)
                 if decoded:
                     decoded_batch.update(decoded)

@@ -1,5 +1,5 @@
-import json
 import logging
+import pickle
 import sys
 from argparse import ArgumentParser
 from time import sleep, time
@@ -69,7 +69,7 @@ def main(args):
         logger.exception(e)
         sys.exit(1)
 
-    red = redis.StrictRedis("localhost", 6379, charset="utf-8", decode_responses=True)
+    red = redis.StrictRedis("localhost", 6379)
 
     if test:
         reader = ASCReader(f"test_data/{channel}_cleaned.asc", relative_timestamp=False)
@@ -93,8 +93,7 @@ def main(args):
             else:
                 message = bus.recv()
             if message:
-                frame = tools.serialize_msg(message)
-                batch.append(frame)
+                batch.append(message)
                 frame_count += 1
 
             if len(batch) >= batch_size:
@@ -103,8 +102,8 @@ def main(args):
                     time_left = test_batch_send - now
                     sleep(max((time_left, 0)))
                     test_batch_send = now + test_batch_interval
-                batch_str = json.dumps(batch)
-                red.publish(f"{channel}_frame_batch", batch_str)
+                pickled_batch = pickle.dumps(batch)
+                red.publish(f"{channel}_frame_batch", pickled_batch)
                 batch = []
 
             if frame_count >= 10000:
