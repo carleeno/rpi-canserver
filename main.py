@@ -1,3 +1,4 @@
+import json
 import logging
 import shlex
 import signal
@@ -6,7 +7,6 @@ from time import sleep, time
 
 import psutil
 import socketio
-from gpiozero import CPUTemperature
 
 import config as cfg
 import tools
@@ -44,7 +44,6 @@ class CanServer:
         psutil.cpu_percent()  # initial call to set start of interval
         self.rolling_disk_io = [(time(), psutil.disk_io_counters(nowrap=True))]
         self.disk_io_time_window = 30
-        self.cpu_temp = CPUTemperature()
         self.killer = tools.GracefulKiller()
 
     def run(self):
@@ -97,7 +96,9 @@ class CanServer:
         system_stats["cpu all"] = f"{int(sum(per_cpu_usage)/len(per_cpu_usage))} %"
         for i, usage in enumerate(per_cpu_usage):
             system_stats[f"cpu {i}"] = f"{int(usage)} %"
-        system_stats["cpu temp"] = f"{int(self.cpu_temp.temperature)} °C"
+        cpu_temp = self.cpu_temp()
+        if cpu_temp:
+            system_stats["cpu temp"] = f"{int(cpu_temp)} °C"
         system_stats["memory usage"] = f"{int(psutil.virtual_memory().percent)} %"
         system_stats["disk usage"] = f"{int(psutil.disk_usage('/').percent)} %"
         self.rolling_disk_io.append((time(), psutil.disk_io_counters(nowrap=True)))
@@ -119,6 +120,20 @@ class CanServer:
         system_stats["disk write ops"] = f"{write_ops:.2f} ops/s"
 
         self.sio.emit("broadcast_stats", {"system": system_stats})
+
+    def cpu_temp(self):
+        try:
+            stdout = subprocess.run(
+                ["sensors", "-jA"], capture_output=True, text=True
+            ).stdout.strip("\n")
+            data = json.loads(stdout)
+            for k, v in data.items():
+                if "coretemp" in k or "cpu_thermal" in k:
+                    temp = next(iter(v.values()))["temp1_input"]
+                    return temp
+        except Exception as e:
+            # logger.exception(f"Exception trying to get cpu temp: {e}")
+            return
 
     def _callbacks(self):
         @self.sio.event

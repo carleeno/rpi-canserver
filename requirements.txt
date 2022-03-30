@@ -11,5 +11,3 @@ websocket-client
 
 cantools
 python-can
-gpiozero
-RPi.GPIO

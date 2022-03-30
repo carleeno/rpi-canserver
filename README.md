@@ -12,6 +12,8 @@ dtoverlay=mcp2515-can1,oscillator=16000000,interrupt=24
 dtoverlay=spi-bcm2835-overlay
 ```
 
+You'll need lm-sensors to get cpu temperature: `sudo apt install lm-sensors`
+
 Install docker and docker-compose (Google is your friend)
 
 ## Configuration:
