@@ -31,10 +31,6 @@ sio.on('message', (message) => {
     document.getElementById("last_message").innerHTML = message;
 });
 
-sio.on('can_frame_batch', (data) => {
-    console.log('A frame batch has arrived');
-});
-
 sio.on('stats', (data) => {
     if (data.fps) {
         update_fps_stats(data.fps);

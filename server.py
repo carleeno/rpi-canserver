@@ -37,11 +37,6 @@ def disconnect(sid):
 
 
 @sio.event
-def broadcast_can_frame_batch(sid, data):
-    sio.emit("can_frame_batch", data, to="raw_can")
-
-
-@sio.event
 def broadcast_message(sid, message):
     sio.send(message)
 

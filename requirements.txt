@@ -1,6 +1,7 @@
 black
 PyYAML
 psutil
+redis
 
 eventlet==0.30.2
 gunicorn

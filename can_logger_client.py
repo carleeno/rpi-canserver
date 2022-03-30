@@ -1,9 +1,11 @@
+import json
 import logging
 import os
 from argparse import ArgumentParser
 from datetime import datetime
 from time import sleep, time
 
+import redis
 import socketio
 from can import ASCWriter
 
@@ -17,6 +19,11 @@ class CanLogger:
         self.parse_args()
         self.logger = logging.getLogger(f"can_logger.{self.channel}")
         self.sio = socketio.Client()
+        self.red = redis.StrictRedis(
+            "localhost", 6379, charset="utf-8", decode_responses=True
+        )
+        self.red_sub = self.red.pubsub()
+
         self.log_dir = self.log_dir.rstrip("/")
         os.makedirs(self.log_dir, exist_ok=True)
         self.writer = None
@@ -56,7 +63,11 @@ class CanLogger:
             headers={"X-Username": f"can_logger.{self.channel}"},
             wait_timeout=60,
         )
-        self.sio.emit("enter_room", "raw_can")
+        self.red_sub.subscribe(f"{self.channel}_frame_batch")
+        for msg in self.red_sub.listen():
+            if msg and isinstance(msg, dict) and msg["type"] == "message":
+                batch_str = msg.get("data")
+                self._on_frame_batch(batch_str)
         self.sio.wait()
 
     def shutdown(self):
@@ -95,6 +106,17 @@ class CanLogger:
                 },
             )
 
+    def _on_frame_batch(self, batch_str):
+        if not self.logging:
+            return
+
+        batch = json.loads(batch_str)
+
+        for ts, msg in batch:
+            self.writer.log_event(msg, ts)
+
+        self._frame_counter(len(batch))
+
     def _frame_counter(self, count):
         self.frame_count += count
         if self.frame_count >= 10000:
@@ -124,19 +146,6 @@ class CanLogger:
         @self.sio.event
         def stop_logging():
             self._stop_logging()
-
-        @self.sio.event
-        def can_frame_batch(data):
-            if not self.logging:
-                return
-            batch = data.get(self.channel)
-            if not batch:
-                return
-
-            for ts, msg in batch:
-                self.writer.log_event(msg, ts)
-
-            self._frame_counter(len(batch))
 
         @self.sio.event
         def stats(data):

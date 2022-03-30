@@ -1,9 +1,11 @@
+import json
 import logging
 import sys
 from argparse import ArgumentParser
-from time import time, sleep
+from time import sleep, time
 
 import can
+import redis
 import socketio
 from can import ASCReader
 
@@ -67,6 +69,8 @@ def main(args):
         logger.exception(e)
         sys.exit(1)
 
+    red = redis.StrictRedis("localhost", 6379, charset="utf-8", decode_responses=True)
+
     if test:
         reader = ASCReader(f"test_data/{channel}_cleaned.asc", relative_timestamp=False)
         test_batch_interval = 1 / (3000 / batch_size)  # 3000fps
@@ -99,8 +103,8 @@ def main(args):
                     time_left = test_batch_send - now
                     sleep(max((time_left, 0)))
                     test_batch_send = now + test_batch_interval
-                if sio.connected:
-                    sio.emit("broadcast_can_frame_batch", {channel: batch})
+                batch_str = json.dumps(batch)
+                red.publish(f"{channel}_frame_batch", batch_str)
                 batch = []
 
             if frame_count >= 10000:

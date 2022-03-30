@@ -1,8 +1,10 @@
+import json
 import logging
 from argparse import ArgumentParser
 from time import time
 
 import cantools
+import redis
 import socketio
 from can import Message
 
@@ -18,6 +20,10 @@ class CanDecoder:
         self._parse_args()
         self.logger = logging.getLogger("can_decoder")
         self.sio = socketio.Client()
+        self.red = redis.StrictRedis(
+            "localhost", 6379, charset="utf-8", decode_responses=True
+        )
+        self.red_sub = self.red.pubsub()
 
         self._setup_decoding()
         self._failed_messages = []
@@ -68,8 +74,33 @@ class CanDecoder:
             headers={"X-Username": "can_decoder"},
             wait_timeout=60,
         )
-        self.sio.emit("enter_room", "raw_can")
+        self.red_sub.subscribe("can0_frame_batch")
+        self.red_sub.subscribe("can1_frame_batch")
+        for msg in self.red_sub.listen():
+            if msg and isinstance(msg, dict) and msg["type"] == "message":
+                batch_str = msg.get("data")
+                self._on_frame_batch(batch_str)
         self.sio.wait()
+
+    def _on_frame_batch(self, batch_str):
+        batch = json.loads(batch_str)
+        self._msg_batch.extend(batch)
+        now = time()
+        if now >= self._batch_start + self._batch_interval:
+            batch = self._msg_batch
+            batch.reverse()
+            decoded_batch = {}
+            for msg in batch:
+                msg = tools.deserialize_msg(msg)
+                decoded = self._decode(msg)
+                if decoded:
+                    decoded_batch.update(decoded)
+            if self.sio.connected and decoded_batch:
+                self.sio.emit("broadcast_vehicle_stats", decoded_batch)
+
+            self._frame_counter(len(decoded_batch))
+            self._msg_batch = []
+            self._batch_start = now
 
     def _decode(self, message: Message):
         if message.arbitration_id not in self._decode_filter:
@@ -111,27 +142,6 @@ class CanDecoder:
         @self.sio.event
         def connect_error(e):
             self.logger.error(e)
-
-        @self.sio.event
-        def can_frame_batch(data: dict):
-            msgs: list = next(iter(data.values()))
-            self._msg_batch.extend(msgs)
-            now = time()
-            if now >= self._batch_start + self._batch_interval:
-                msgs = self._msg_batch
-                msgs.reverse()
-                decoded_batch = {}
-                for msg in msgs:
-                    msg = tools.deserialize_msg(msg)
-                    decoded = self._decode(msg)
-                    if decoded:
-                        decoded_batch.update(decoded)
-                if self.sio.connected and decoded_batch:
-                    self.sio.emit("broadcast_vehicle_stats", decoded_batch)
-
-                self._frame_counter(len(decoded_batch))
-                self._msg_batch = []
-                self._batch_start = now
 
 
 if __name__ == "__main__":

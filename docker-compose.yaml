@@ -8,4 +8,11 @@ services:
       - /etc/localtime:/etc/localtime
       - /etc/timezone:/etc/timezone
     stop_grace_period: 30s
+    depends_on:
+      - redis
     command: "python main.py -a 10.42.0.1:5000"
+  redis:
+    image: redis
+    restart: always
+    ports:
+      - '6379:6379'
