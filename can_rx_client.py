@@ -33,6 +33,9 @@ def parse_args():
     parser.add_argument(
         "--batch_size", default=10, help="Size of batches to send can frames"
     )
+    parser.add_argument(
+        "--test", action="store_true", help="Run in test mode (no can device)"
+    )
 
     return parser.parse_args()
 
@@ -41,6 +44,7 @@ def main(args):
     channel = args.channel
     bustype = args.bustype
     server = args.server
+    test = args.test
 
     global logger
     logger = logging.getLogger(f"can_rx_client.{channel}")
@@ -62,7 +66,8 @@ def main(args):
         logger.exception(e)
         sys.exit(1)
 
-    bus = can.interface.Bus(channel=channel, bustype=bustype)
+    if not test:
+        bus = can.interface.Bus(channel=channel, bustype=bustype)
     logger.debug(f"{channel} bus started")
 
     try:
@@ -70,7 +75,10 @@ def main(args):
         frame_count = 0
         batch = []
         while True:
-            message = bus.recv()
+            if not test:
+                message = bus.recv()
+            else:
+                message = None
             if message:
                 frame = tools.serialize_msg(message)
                 batch.append(frame)

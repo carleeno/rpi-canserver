@@ -3,6 +3,7 @@ import logging
 import shlex
 import signal
 import subprocess
+from argparse import ArgumentParser
 from time import sleep, time
 
 import psutil
@@ -19,7 +20,7 @@ server_stderr = open("/tmp/canserver-logs/server.stderr.log", "w")
 
 
 class CanServer:
-    def __init__(self, address="10.42.0.1:5000", batch_size=100) -> None:
+    def __init__(self, address, batch_size, test) -> None:
         self.server_address = address
         self.batch_size = batch_size
         self.server_proc = None
@@ -33,6 +34,8 @@ class CanServer:
         self.rx_client_cmd = shlex.split(
             f"python can_rx_client.py -s http://{self.server_address} --batch_size {self.batch_size}"
         )
+        if test:
+            self.rx_client_cmd += ["--test"]
         self.logger_client_cmd = shlex.split(
             f"python can_logger_client.py -s http://{self.server_address}"
         )
@@ -150,9 +153,28 @@ class CanServer:
                 self.stats["last_logged"] = now
 
 
+def parse_args():
+    parser = ArgumentParser()
+    parser.add_argument(
+        "--address",
+        "-a",
+        default="localhost:5000",
+        help="Address to run socketIO on",
+    )
+    parser.add_argument(
+        "--batch_size", default=100, help="Size of batches to send can frames"
+    )
+    parser.add_argument(
+        "--test", action="store_true", help="Run in test mode (no can device)"
+    )
+
+    return parser.parse_args()
+
+
 def main():
     logger.info("################ CAN-Server is starting ################")
-    canserver = CanServer()
+    args = parse_args()
+    canserver = CanServer(args.address, args.batch_size, args.test)
     try:
         canserver.run()
         canserver.shutdown()

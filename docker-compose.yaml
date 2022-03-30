@@ -8,3 +8,4 @@ services:
       - /etc/localtime:/etc/localtime
       - /etc/timezone:/etc/timezone
     stop_grace_period: 30s
+    command: "python main.py -a 10.42.0.1:5000"
