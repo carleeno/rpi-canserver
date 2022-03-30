@@ -68,7 +68,7 @@ def main(args):
         sys.exit(1)
 
     if test:
-        reader = ASCReader(f"test_data/{channel}_cleaned.asc")
+        reader = ASCReader(f"test_data/{channel}_cleaned.asc", relative_timestamp=False)
         test_batch_interval = 1 / (3000 / batch_size)  # 3000fps
         test_batch_send = time() + test_batch_interval
     else:
