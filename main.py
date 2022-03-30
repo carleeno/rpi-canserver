@@ -162,7 +162,7 @@ def parse_args():
         help="Address to run socketIO on",
     )
     parser.add_argument(
-        "--batch_size", default=100, help="Size of batches to send can frames"
+        "--batch_size", default=50, help="Size of batches to send can frames"
     )
     parser.add_argument(
         "--test", action="store_true", help="Run in test mode (no can device)"
