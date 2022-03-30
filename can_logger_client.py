@@ -65,7 +65,9 @@ class CanLogger:
             self.red_sub.subscribe(
                 **{f"{self.channel}_frame_batch": self._pubsub_handler}
             )
-            self._pubsub_thread = self.red_sub.run_in_thread(daemon=True)
+            self._pubsub_thread = self.red_sub.run_in_thread(
+                sleep_time=0.1, daemon=True
+            )
             while True:
                 sleep(1)
                 self._stats_publisher()
