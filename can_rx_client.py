@@ -1,10 +1,11 @@
 import logging
 import sys
 from argparse import ArgumentParser
-from time import time
+from time import time, sleep
 
 import can
 import socketio
+from can import ASCReader
 
 import tools
 from logging_setup import setup_logging
@@ -66,7 +67,11 @@ def main(args):
         logger.exception(e)
         sys.exit(1)
 
-    if not test:
+    if test:
+        reader = ASCReader(f"test_data/{channel}_cleaned.asc")
+        test_batch_interval = 1 / (3000 / batch_size)  # 3000fps
+        test_batch_send = time() + test_batch_interval
+    else:
         bus = can.interface.Bus(channel=channel, bustype=bustype)
     logger.debug(f"{channel} bus started")
 
@@ -75,16 +80,25 @@ def main(args):
         frame_count = 0
         batch = []
         while True:
-            if not test:
-                message = bus.recv()
+            if test:
+                try:
+                    message = next(iter(reader))
+                except StopIteration:
+                    logger.info("Finished test")
+                    break
             else:
-                message = None
+                message = bus.recv()
             if message:
                 frame = tools.serialize_msg(message)
                 batch.append(frame)
                 frame_count += 1
 
             if len(batch) >= batch_size:
+                if test:
+                    now = time()
+                    time_left = test_batch_send - now
+                    sleep(max((time_left, 0)))
+                    test_batch_send = now + test_batch_interval
                 if sio.connected:
                     sio.emit("broadcast_can_frame_batch", {channel: batch})
                 batch = []
