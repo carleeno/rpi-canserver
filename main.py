@@ -15,7 +15,7 @@ from logging_setup import setup_logging
 setup_logging()
 logger = logging.getLogger("canserver.main")
 
-server_stderr = open("/logs/server.stderr.log", "w")
+server_stderr = open("/tmp/canserver-logs/server.stderr.log", "w")
 
 
 class CanServer:

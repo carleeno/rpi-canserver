@@ -4,7 +4,7 @@ services:
     build: .
     network_mode: host
     volumes:
-      - /home/carlin/canserver-logs:/logs
+      - /home/${USER}/canserver-logs:/tmp/canserver-logs
       - /etc/localtime:/etc/localtime
       - /etc/timezone:/etc/timezone
     stop_grace_period: 30s

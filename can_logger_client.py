@@ -33,7 +33,10 @@ class CanLogger:
             "--channel", "-c", default="can0", help="Bus channel to use"
         )
         parser.add_argument(
-            "--log_dir", "-l", default="/logs/can_logs", help="Where to write the logs"
+            "--log_dir",
+            "-l",
+            default="/tmp/canserver-logs/asc_logs",
+            help="Where to write the logs",
         )
         parser.add_argument(
             "--server",
