@@ -54,7 +54,7 @@ class CanServer:
         )
         sleep(2)
         self.sio.connect(
-            self.server_address,
+            f"http://{self.server_address}",
             headers={"X-Username": "canserver.main"},
             wait_timeout=60,
         )
