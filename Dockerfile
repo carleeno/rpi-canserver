@@ -20,7 +20,7 @@ RUN pip3 install --no-cache-dir -r requirements.txt
 
 FROM ubuntu:20.04 AS runner-image
 ENV DEBIAN_FRONTEND=noninteractive
-RUN apt-get update && apt-get install --no-install-recommends -y tzdata netbase python3.9 python3-venv && \
+RUN apt-get update && apt-get install --no-install-recommends -y tzdata netbase lm-sensors python3.9 python3-venv && \
 	apt-get clean && rm -rf /var/lib/apt/lists/*
 
 RUN useradd --create-home rpics

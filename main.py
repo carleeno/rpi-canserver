@@ -99,7 +99,7 @@ class CanServer:
         system_stats["cpu all"] = f"{int(sum(per_cpu_usage)/len(per_cpu_usage))} %"
         for i, usage in enumerate(per_cpu_usage):
             system_stats[f"cpu {i}"] = f"{int(usage)} %"
-        cpu_temp = self.cpu_temp()
+        cpu_temp = self._cpu_temp()
         if cpu_temp:
             system_stats["cpu temp"] = f"{int(cpu_temp)} °C"
         system_stats["memory usage"] = f"{int(psutil.virtual_memory().percent)} %"
@@ -124,7 +124,7 @@ class CanServer:
 
         self.sio.emit("broadcast_stats", {"system": system_stats})
 
-    def cpu_temp(self):
+    def _cpu_temp(self):
         try:
             stdout = subprocess.run(
                 ["sensors", "-jA"], capture_output=True, text=True
