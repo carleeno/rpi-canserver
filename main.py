@@ -20,7 +20,7 @@ server_stderr = open("/tmp/canserver-logs/server.stderr.log", "w")
 
 
 class CanServer:
-    def __init__(self, address, batch_size, test) -> None:
+    def __init__(self, address, panda_bind, batch_size, test) -> None:
         self.server_address = address
         self.batch_size = batch_size
         self.server_proc = None
@@ -42,6 +42,9 @@ class CanServer:
         self.decoder_client_cmd = shlex.split(
             f"python can_decoder_client.py -s http://{self.server_address}"
         )
+        self.panda_server_cmd = shlex.split(
+            f"python panda_server.py -s http://{self.server_address} -p {panda_bind}"
+        )
 
         self.stats = {"last_logged": int(time())}
         psutil.cpu_percent()  # initial call to set start of interval
@@ -62,7 +65,6 @@ class CanServer:
         )
         self.client_procs.append(subprocess.Popen(self.rx_client_cmd))
         self.client_procs.append(subprocess.Popen(self.logger_client_cmd))
-        self.client_procs.append(subprocess.Popen(self.decoder_client_cmd))
         if cfg.pican_duo:
             self.client_procs.append(
                 subprocess.Popen(self.rx_client_cmd + ["-c", "can1"])
@@ -70,6 +72,8 @@ class CanServer:
             self.client_procs.append(
                 subprocess.Popen(self.logger_client_cmd + ["-c", "can1"])
             )
+        self.client_procs.append(subprocess.Popen(self.decoder_client_cmd))
+        self.client_procs.append(subprocess.Popen(self.panda_server_cmd))
         while not self.killer.kill_now:
             self._system_stats()
             sleep(1)
@@ -158,8 +162,14 @@ def parse_args():
     parser.add_argument(
         "--address",
         "-a",
-        default="localhost:5000",
+        default="127.0.0.1:5000",
         help="Address to run socketIO on",
+    )
+    parser.add_argument(
+        "--panda_bind",
+        "-p",
+        default="127.0.0.1:1338",
+        help="Address to bind panda server to",
     )
     parser.add_argument(
         "--batch_size", default=50, help="Size of batches to send can frames"
@@ -174,7 +184,7 @@ def parse_args():
 def main():
     logger.info("################ CAN-Server is starting ################")
     args = parse_args()
-    canserver = CanServer(args.address, args.batch_size, args.test)
+    canserver = CanServer(args.address, args.panda_bind, args.batch_size, args.test)
     try:
         canserver.run()
         canserver.shutdown()
