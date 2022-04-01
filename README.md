@@ -17,6 +17,25 @@ You'll need lm-sensors to get cpu temperature: `sudo apt install lm-sensors`
 
 Install docker and docker-compose (Google is your friend)
 
+## Bring up can network at boot
+
+If you're using systemd-networkd, it's easy.
+
+Create: `/etc/systemd/network/80-can0.network` (and `/etc/systemd/network/81-can1.network` if you have both)
+
+```test
+[Match]
+Name=can0
+
+[CAN]
+BitRate=500K
+RestartSec=100ms
+```
+
+(don't forget to change `Name=` to `can1` for the 2nd file)
+
+Then reboot or restart systemd-networkd
+
 ## Configuration
 
 If you only have a single-channel PICAN: edit config.py and set `pican_duo = False`
@@ -32,6 +51,6 @@ After edits, run `docker-compose build`
 
 ## Running
 
-`sudo /sbin/ip link set can0 up type can bitrate 500000 && sudo /sbin/ip link set can0 up type can bitrate 500000`
-
 `docker-compose up`
+
+By default it will always restart the containers at boot.

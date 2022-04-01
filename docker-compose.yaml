@@ -11,6 +11,7 @@ services:
     depends_on:
       - redis
     command: "python main.py -a 10.42.0.1:5000 -p 10.42.0.1:1338"
+    restart: always
   redis:
     image: redis
     restart: always
