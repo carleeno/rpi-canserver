@@ -10,14 +10,19 @@
     <h1>RPI-Canserver</h1>
     <script src="sio.min.3.0.4.js"></script>
     <script src="index.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js"></script>
 
     <h3 id="status">Disconnected</h3>
-    <input type="button" onclick="start_logging()" value="Start Logging">
-    <input type="button" onclick="stop_logging()" value="Stop Logging">
-    <input type="button" onclick="auto_logging_on()" value="Enable Auto Logging">
-    <input type="button" onclick="auto_logging_off()" value="Disable Auto Logging">
-    <h3>Last message:</h3>
-    <p id="last_message"></p>
+    <div id="logging_buttons">
+        <input type="button" onclick="startLogging()" value="Start Logging">
+        <input type="button" onclick="stopLogging()" value="Stop Logging">
+    </div>
+    <div id="autolog_buttons">
+        <input type="button" onclick="autoLoggingOn()" value="Enable Auto Logging">
+        <input type="button" onclick="autoLoggingOff()" value="Disable Auto Logging">
+    </div>
+    <div id="messages">
+    </div>
     <h3>Stats</h2>
         <div id="stats">
             <table id="fps_stats">

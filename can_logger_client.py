@@ -123,7 +123,6 @@ class CanLogger:
     def _stop_logging(self):
         if self.logging:
             self.logging = False
-            sleep(1)
             self.writer.stop()
 
     def _stats_publisher(self):

@@ -38,7 +38,9 @@ def disconnect(sid):
 
 @sio.event
 def broadcast_message(sid, message):
-    sio.send(message)
+    with sio.session(sid) as s:
+        username = s["username"]
+    sio.send(f"{username}: {message}")
 
 
 @sio.event
@@ -54,6 +56,7 @@ def broadcast_vehicle_stats(sid, data):
 @sio.event
 def broadcast_logging_control(sid, data):
     sio.emit("logging_control", data)
+    sio.send(f"Senting logging control: {data}")
 
 
 @sio.event

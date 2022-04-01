@@ -1,5 +1,5 @@
 table, th, td {
-    border: 1px solid rgb(165, 165, 165);
+    border: 2px solid rgb(165, 165, 165);
     border-collapse: collapse;
 }
 
@@ -19,4 +19,12 @@ body,h1,h2,h3,h4,h5,h6 {
     font-family: "Montserrat", sans-serif;
     background-color: rgb(30, 30, 30);
     color: rgb(194, 194, 194);
+}
+
+#messages {
+    margin: 24px 0 0 0;
+    border: 2px solid rgb(165, 165, 165);
+    height: 100px;
+    width: 500px;
+    overflow: hidden;
 }

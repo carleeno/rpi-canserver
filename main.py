@@ -75,13 +75,20 @@ class CanServer:
             )
         self.client_procs.append(subprocess.Popen(self.decoder_client_cmd))
         self.client_procs.append(subprocess.Popen(self.panda_server_cmd))
+        if self.sio.connected:
+            self.sio.emit("broadcast_message", "canserver started")
         while not self.killer.kill_now:
             self._system_stats()
             self._check_clients()
             sleep(1)
 
-    def shutdown(self, send_sigint=True):
-        logger.info("Shutting down")
+    def shutdown(self, send_sigint=True, reason=""):
+        message = "Shutting down"
+        if reason:
+            message += f" for: {reason}"
+        logger.info(message)
+        if self.sio.connected:
+            self.sio.emit("broadcast_message", message)
         for proc in self.client_procs:
             if send_sigint:
                 proc.send_signal(signal.SIGINT)
@@ -146,7 +153,7 @@ class CanServer:
     def _check_clients(self):
         dead_procs = [x for x in self.client_procs if x.poll() != None]
         if dead_procs:
-            self.shutdown()
+            self.shutdown(reason="Dead client")
 
     def _cpu_temp(self):
         try:
@@ -207,13 +214,13 @@ def main():
     canserver = CanServer(args.address, args.panda_bind, args.batch_size, args.test)
     try:
         canserver.run()
-        canserver.shutdown()
+        canserver.shutdown(reason="run completed")
     except KeyboardInterrupt:
         logger.warning("Keyboard interrupt")
-        canserver.shutdown(send_sigint=False)
+        canserver.shutdown(send_sigint=False, reason="KeyboardInterrupt")
     except Exception as e:
         logger.exception(e)
-        canserver.shutdown()
+        canserver.shutdown(reason=e)
     finally:
         server_stderr.close()
 

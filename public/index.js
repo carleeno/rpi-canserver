@@ -24,27 +24,29 @@ sio.on('disconnect', () => {
     clearTable(document.getElementById('fps_stats'));
     clearTable(document.getElementById('system_stats'));
     clearTable(document.getElementById('vehicle_stats'));
+    updateButtons();
 });
 
 sio.on('message', (message) => {
     console.log(message);
-    document.getElementById("last_message").innerHTML = message;
+    $("<div />").text(message).appendTo("#messages");
+    tailScroll();
 });
 
 sio.on('stats', (data) => {
     if (data.fps) {
-        update_fps_stats(data.fps);
+        updateFpsStats(data.fps);
     }
     if (data.system) {
-        update_system_stats(data.system);
+        updateSystemStats(data.system);
     }
 });
 
 sio.on('vehicle_stats', (data) => {
-    update_vehicle_stats(data);
+    updateVehicleStats(data);
 })
 
-function update_fps_stats(fps) {
+function updateFpsStats(fps) {
     table = document.getElementById('fps_stats');
     for (let channel in fps) {
         row = document.getElementById(`fps_${channel}`);
@@ -58,7 +60,7 @@ function update_fps_stats(fps) {
     sortTable(table);
 }
 
-function update_system_stats(stats) {
+function updateSystemStats(stats) {
     table = document.getElementById('system_stats');
     for (let item in stats) {
         row = document.getElementById(`sys_stat_${item}`);
@@ -75,9 +77,10 @@ function update_system_stats(stats) {
         row.innerHTML = rowHTML;
     }
     sortTable(table);
+    updateButtons();
 }
 
-function update_vehicle_stats(stats) {
+function updateVehicleStats(stats) {
     table = document.getElementById('vehicle_stats');
     for (let msg in stats) {
         for (let sig in stats[msg]) {
@@ -131,18 +134,67 @@ function clearTable(table) {
     table.tBodies[0].innerHTML = '';
 }
 
-function start_logging() {
+function updateButtons() {
+    loggingRow0 = document.getElementById('sys_stat_can0 logging');
+    loggingRow1 = document.getElementById('sys_stat_can1 logging');
+    autologRow0 = document.getElementById('sys_stat_can0 auto-log');
+    autologRow1 = document.getElementById('sys_stat_can1 auto-log');
+
+    if (loggingRow0) {
+        logging0 = (loggingRow0.getElementsByTagName("TD")[1].innerHTML.includes('true'));
+    } else {logging0 = null;}
+    if (loggingRow1) {
+        logging1 = (loggingRow1.getElementsByTagName("TD")[1].innerHTML.includes('true'));
+    } else {logging1 = null;}
+    if (autologRow0) {
+        autolog0 = (autologRow0.getElementsByTagName("TD")[1].innerHTML.includes('true'));
+    } else {autolog0 = null;}
+    if (autologRow1) {
+        autolog1 = (autologRow1.getElementsByTagName("TD")[1].innerHTML.includes('true'));
+    } else {autolog1 = null;}
+
+    logging_buttons = document.getElementById('logging_buttons');
+    autolog_buttons = document.getElementById('autolog_buttons');
+
+    if (logging0 & logging1) {
+        logging_buttons.innerHTML = '<input type="button" onclick="stopLogging()" value="Stop Logging">';
+    } else if (logging0 === false & logging1 === false) {
+        logging_buttons.innerHTML = '<input type="button" onclick="startLogging()" value="Start Logging">';
+    } else {
+        logging_buttons.innerHTML = '<input type="button" onclick="startLogging()" value="Start Logging">';
+        logging_buttons.innerHTML += '<input type="button" onclick="stopLogging()" value="Stop Logging">';
+    }
+
+    if (autolog0 & autolog1) {
+        autolog_buttons.innerHTML = '<input type="button" onclick="autoLoggingOff()" value="Disable Auto Logging">';
+        logging_buttons.innerHTML = '';
+    } else if (autolog0 === false & autolog1 === false) {
+        autolog_buttons.innerHTML = '<input type="button" onclick="autoLoggingOn()" value="Enable Auto Logging">';
+    } else {
+        autolog_buttons.innerHTML = '<input type="button" onclick="autoLoggingOn()" value="Enable Auto Logging">';
+        autolog_buttons.innerHTML += '<input type="button" onclick="autoLoggingOff()" value="Disable Auto Logging">';
+    }
+}
+
+function startLogging() {
     sio.emit('broadcast_logging_control', 'start');
 }
 
-function stop_logging() {
+function stopLogging() {
     sio.emit('broadcast_logging_control', 'stop');
 }
 
-function auto_logging_on() {
+function autoLoggingOn() {
     sio.emit('broadcast_logging_control', 'auto_on');
 }
 
-function auto_logging_off() {
+function autoLoggingOff() {
     sio.emit('broadcast_logging_control', 'auto_off');
+}
+
+function tailScroll() {
+    var height = $("#messages").get(0).scrollHeight;
+    $("#messages").animate({
+        scrollTop: height
+    }, 500);
 }
