@@ -145,7 +145,7 @@ class PandaServer:
                 "broadcast_stats",
                 {
                     "fps": {"panda": fps},
-                    "system": {"panda clients": len(self.panda_clients)},
+                    "system": {"panda clients": {"value": len(self.panda_clients)}},
                 },
             )
         self.last_stats_time = now

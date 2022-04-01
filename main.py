@@ -102,14 +102,23 @@ class CanServer:
     def _system_stats(self):
         system_stats = {}
         per_cpu_usage = psutil.cpu_percent(percpu=True)
-        system_stats["cpu all"] = f"{int(sum(per_cpu_usage)/len(per_cpu_usage))} %"
+        system_stats["cpu all"] = {
+            "value": round(sum(per_cpu_usage) / len(per_cpu_usage)),
+            "unit": "%",
+        }
         for i, usage in enumerate(per_cpu_usage):
-            system_stats[f"cpu {i}"] = f"{int(usage)} %"
+            system_stats[f"cpu {i}"] = {"value": round(usage), "unit": "%"}
         cpu_temp = self._cpu_temp()
         if cpu_temp:
-            system_stats["cpu temp"] = f"{int(cpu_temp)} °C"
-        system_stats["memory usage"] = f"{int(psutil.virtual_memory().percent)} %"
-        system_stats["disk usage"] = f"{int(psutil.disk_usage('/').percent)} %"
+            system_stats["cpu temp"] = {"value": round(cpu_temp, 1), "unit": "°C"}
+        system_stats["memory usage"] = {
+            "value": round(psutil.virtual_memory().percent),
+            "unit": "%",
+        }
+        system_stats["disk usage"] = {
+            "value": round(psutil.disk_usage("/").percent),
+            "unit": "%",
+        }
         self.rolling_disk_io.append((time(), psutil.disk_io_counters(nowrap=True)))
         time_delta = self.rolling_disk_io[-1][0] - self.rolling_disk_io[0][0]
         while time_delta > self.disk_io_time_window:
@@ -125,8 +134,11 @@ class CanServer:
         )
         write_speed = write_bytes_delta / time_delta / 1024
         write_ops = write_ops_delta / time_delta
-        system_stats["disk write speed"] = f"{write_speed:.2f} KB/s"
-        system_stats["disk write ops"] = f"{write_ops:.2f} ops/s"
+        system_stats["disk write speed"] = {
+            "value": round(write_speed, 2),
+            "unit": "KB/s",
+        }
+        system_stats["disk write ops"] = {"value": round(write_ops, 2), "unit": "ops/s"}
 
         if self.sio.connected:
             self.sio.emit("broadcast_stats", {"system": system_stats})

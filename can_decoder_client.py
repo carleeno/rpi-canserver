@@ -22,6 +22,7 @@ class CanDecoder:
         self.red = redis.StrictRedis("localhost", 6379)
         self.red_sub = self.red.pubsub()
 
+        self._signal_cache = {}
         self._setup_decoding()
         self._failed_messages = []
         self._last_decoded_ts = {"id": "ts"}
@@ -57,6 +58,9 @@ class CanDecoder:
             try:
                 db_msg = self.db.get_message_by_name(name)
                 self._decode_filter.append(db_msg.frame_id)
+                self._signal_cache[db_msg.frame_id] = {}
+                for sig in db_msg.signals:
+                    self._signal_cache[db_msg.frame_id][sig.name] = sig
             except KeyError:
                 raise Exception(f"Filter message '{name}' not found in dbc.")
 
@@ -127,7 +131,13 @@ class CanDecoder:
             return None
 
         try:
-            decoded_data = db_msg.decode(message.data, decode_choices=False)
+            decoded_data = db_msg.decode(message.data)
+            for k, v in decoded_data.items():
+                unit = self._signal_cache[message.arbitration_id][k].unit
+                if isinstance(v, cantools.db.can.signal.NamedSignalValue):
+                    decoded_data[k] = {"name": v.name, "value": v.value}
+                else:
+                    decoded_data[k] = {"value": v, "unit": unit}
         except Exception as e:
             if db_msg.name not in self._failed_messages:
                 self._failed_messages.append(db_msg.name)

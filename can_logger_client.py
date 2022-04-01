@@ -124,8 +124,8 @@ class CanLogger:
                 {
                     "fps": {f"{self.channel} log": fps},
                     "system": {
-                        f"{self.channel} log file": self.file_name,
-                        f"{self.channel} logging": self.logging,
+                        f"{self.channel} log file": {"value": self.file_name},
+                        f"{self.channel} logging": {"value": self.logging},
                     },
                 },
             )
@@ -148,13 +148,13 @@ class CanLogger:
         @self.sio.event
         def stats(data):
             if self.logging and data.get("system") and data["system"].get("disk usage"):
-                usage = int(data["system"]["disk usage"][:-2])
+                usage = int(data["system"]["disk usage"]["value"])
                 if usage > 90:
                     self._stop_logging()
                     if self.sio.connected:
                         self.sio.emit(
                             "broadcast_message",
-                            f"{self.channel} logger stopped because disk is almost full.",
+                            "log stopped because disk is almost full.",
                         )
 
 

@@ -67,7 +67,12 @@ function update_system_stats(stats) {
             row.id = `sys_stat_${item}`;
             table.tBodies[0].appendChild(row);
         }
-        row.innerHTML = `<td>${item}</td><td>${stats[item]}</td>`;
+        if (stats[item].unit) { 
+            rowHTML = `<td>${item}</td><td>${stats[item].value} ${stats[item].unit}</td>`;
+        } else {
+            rowHTML = `<td>${item}</td><td>${stats[item].value}</td>`
+        }
+        row.innerHTML = rowHTML;
     }
     sortTable(table);
 }
@@ -82,7 +87,19 @@ function update_vehicle_stats(stats) {
                 row.id = `veh_stat_${msg}_${sig}`;
                 table.tBodies[0].appendChild(row);
             }
-            row.innerHTML = `<td>${msg}</td><td>${sig}</td><td>${Math.round(stats[msg][sig] * 100) / 100}</td>`;
+            signal = stats[msg][sig];
+            svalue = Math.round(signal.value*100000000)/100000000;
+            sname = signal.name;
+            sunit = signal.unit;
+            if (sname) {
+                rowHTML = `<td>${msg}</td><td>${sig}</td><td>${sname}</td>`;
+            } else if (sunit) {
+                rowHTML = `<td>${msg}</td><td>${sig}</td><td>${svalue} ${sunit}</td>`;
+            } else {
+                rowHTML = `<td>${msg}</td><td>${sig}</td><td>${svalue}</td>`;
+            }
+            
+            row.innerHTML = rowHTML;
         }
     }
     sortTable(table);
