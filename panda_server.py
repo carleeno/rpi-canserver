@@ -72,6 +72,7 @@ class PandaServer:
                 if now >= self.last_stats_time + 1:
                     for client in self.panda_clients.values():
                         client.alive_check()
+                    self._cleanup_clients()
                     self._stats_publisher()
                     self.last_stats_time = now
 
@@ -137,19 +138,24 @@ class PandaServer:
         now = time()
         delta = now - self.last_stats_time
         fps = int(self.frame_count / delta)
-        connected_panda_clients = [
-            x for x in self.panda_clients.values() if x.connected
-        ]
+
         if self.sio.connected:
             self.sio.emit(
                 "broadcast_stats",
                 {
                     "fps": {"panda": fps},
-                    "system": {"panda clients": len(connected_panda_clients)},
+                    "system": {"panda clients": len(self.panda_clients)},
                 },
             )
         self.last_stats_time = now
         self.frame_count = 0
+
+    def _cleanup_clients(self):
+        dead_panda_client_hosts = [
+            x.address[0] for x in self.panda_clients.values() if not x.connected
+        ]
+        for host in dead_panda_client_hosts:
+            del self.panda_clients[host]
 
     def _callbacks(self):
         @self.sio.event
