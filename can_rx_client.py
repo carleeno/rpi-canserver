@@ -61,11 +61,13 @@ class CanReader:
 
     def _setup_bus(self):
         if self.testing:
-            self.reader = ASCReader(
-                f"test_data/{self.channel}_cleaned.asc", relative_timestamp=False
+            self.reader = iter(
+                ASCReader(
+                    f"test_data/{self.channel}_cleaned.asc", relative_timestamp=False
+                )
             )
-            self.test_batch_interval = 1 / (3000 / self.batch_size)  # 3000fps
-            self.test_batch_send = time() + self.test_batch_interval
+            self._test_time_offset = time() - next(self.reader).timestamp
+            self._test_start_time = time()
         else:
             self.bus = can.interface.Bus(channel=self.channel, bustype=self.bustype)
 
@@ -100,10 +102,14 @@ class CanReader:
     def _add_message_to_batch(self):
         if self.testing:
             try:
-                message = next(iter(self.reader))
-            except (StopIteration, ValueError):
-                self.logger.info("test data complete, shutting down soon")
-                sleep(5)
+                message = next(self.reader)
+                sleep_time = (message.timestamp + self._test_time_offset) - time()
+                if sleep_time > 0:
+                    sleep(sleep_time)
+            except StopIteration:
+                test_time = time() - self._test_start_time
+                self.logger.info(f"test data complete after {test_time:.2f} seconds")
+                sleep(1)
                 self.shutdown()
                 return
         else:
@@ -113,11 +119,6 @@ class CanReader:
             self.frame_count += 1
 
     def _publish_batch(self):
-        if self.testing:
-            now = time()
-            time_left = self.test_batch_send - now
-            sleep(max((time_left, 0)))
-            self.test_batch_send = time() + self.test_batch_interval
         pickled_batch = pickle.dumps(self._msg_batch)
         self.red.publish(f"{self.channel}_frame_batch", pickled_batch)
         self._msg_batch = []
