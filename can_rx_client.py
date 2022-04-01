@@ -80,7 +80,7 @@ class CanReader:
             self._stats_thread = Thread(target=self._stats_publisher_task, daemon=True)
             self._stats_thread.start()
 
-            while True:
+            while self._running:
                 self._add_message_to_batch()
                 if len(self._msg_batch) >= self.batch_size:
                     self._publish_batch()
@@ -94,15 +94,18 @@ class CanReader:
 
     def shutdown(self):
         self._running = False
-        self._stats_thread.join()
+        self._stats_thread.join(timeout=2)
+        self.sio.disconnect()
 
     def _add_message_to_batch(self):
         if self.testing:
             try:
                 message = next(iter(self.reader))
             except (StopIteration, ValueError):
-                sleep(1)
-                message = None
+                self.logger.info("test data complete, shutting down soon")
+                sleep(5)
+                self.shutdown()
+                return
         else:
             message = self.bus.recv(timeout=1)
         if message:

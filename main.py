@@ -5,6 +5,7 @@ import signal
 import subprocess
 from argparse import ArgumentParser
 from time import sleep, time
+from typing import List
 
 import psutil
 import socketio
@@ -24,7 +25,7 @@ class CanServer:
         self.server_address = address
         self.batch_size = batch_size
         self.server_proc = None
-        self.client_procs = []
+        self.client_procs: List[subprocess.Popen] = []
         self.sio = socketio.Client()
         self._callbacks()
 
@@ -76,11 +77,11 @@ class CanServer:
         self.client_procs.append(subprocess.Popen(self.panda_server_cmd))
         while not self.killer.kill_now:
             self._system_stats()
+            self._check_clients()
             sleep(1)
 
     def shutdown(self, send_sigint=True):
         logger.info("Shutting down")
-        proc: subprocess.Popen
         for proc in self.client_procs:
             if send_sigint:
                 proc.send_signal(signal.SIGINT)
@@ -96,6 +97,7 @@ class CanServer:
             self.server_proc.wait(timeout=5)
         except subprocess.TimeoutExpired:
             self.server_proc.kill()
+        self.killer.kill_now = True
 
     def _system_stats(self):
         system_stats = {}
@@ -126,7 +128,13 @@ class CanServer:
         system_stats["disk write speed"] = f"{write_speed:.2f} KB/s"
         system_stats["disk write ops"] = f"{write_ops:.2f} ops/s"
 
-        self.sio.emit("broadcast_stats", {"system": system_stats})
+        if self.sio.connected:
+            self.sio.emit("broadcast_stats", {"system": system_stats})
+
+    def _check_clients(self):
+        dead_procs = [x for x in self.client_procs if x.poll() != None]
+        if dead_procs:
+            self.shutdown()
 
     def _cpu_temp(self):
         try:
