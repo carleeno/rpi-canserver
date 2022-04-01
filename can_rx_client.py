@@ -75,7 +75,7 @@ class CanReader:
         try:
             self.sio.connect(
                 self.server_address,
-                headers={"X-Username": f"can_logger.{self.channel}"},
+                headers={"X-Username": f"can_rx_client.{self.channel}"},
                 wait_timeout=60,
             )
             self._running = True
