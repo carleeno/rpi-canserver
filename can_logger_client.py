@@ -28,8 +28,10 @@ class CanLogger:
         self.file_path = None
         self.file_name = None
         self.logging = False
+        self.auto_start_stop_log = True
         self.count_start = time()
         self.frame_count = 0
+        self._last_gear_state_time = 0.0
         self._callbacks()
 
     def parse_args(self):
@@ -70,6 +72,16 @@ class CanLogger:
             )
             while True:
                 sleep(1)
+                if (
+                    self.auto_start_stop_log
+                    and self.logging
+                    and time() > self._last_gear_state_time + 2
+                ):
+                    self.sio.emit(
+                        "broadcast_message",
+                        "log stopped because vehicle is off",
+                    )
+                    self._stop_logging()
                 self._stats_publisher()
         except KeyboardInterrupt:
             pass
@@ -126,6 +138,7 @@ class CanLogger:
                     "system": {
                         f"{self.channel} log file": {"value": self.file_name},
                         f"{self.channel} logging": {"value": self.logging},
+                        f"{self.channel} auto-log": {"value": self.auto_start_stop_log},
                     },
                 },
             )
@@ -138,12 +151,21 @@ class CanLogger:
             self.logger.error(e)
 
         @self.sio.event
-        def start_logging():
-            self._start_logging()
+        def logging_control(data):
+            if data == "start":
+                self._start_logging()
+                msg = "log started by request"
+            elif data == "stop":
+                self._stop_logging()
+                msg = "log stopped by request"
+            elif data == "auto_on":
+                self.auto_start_stop_log = True
+                msg = "log auto start/stop enabled"
+            elif data == "auto_off":
+                self.auto_start_stop_log = False
+                msg = "log auto start/stop disabled"
 
-        @self.sio.event
-        def stop_logging():
-            self._stop_logging()
+            self.sio.emit("broadcast_message", msg)
 
         @self.sio.event
         def stats(data):
@@ -156,6 +178,29 @@ class CanLogger:
                             "broadcast_message",
                             "log stopped because disk is almost full.",
                         )
+
+        @self.sio.event
+        def vehicle_stats(data):
+            if data.get("280"):
+                if data["280"]["DI_gear"]["name"] in [
+                    "DI_GEAR_D",
+                    "DI_GEAR_N",
+                    "DI_GEAR_R",
+                ]:
+                    self._last_gear_state_time = time()
+                    if not self.logging and self.auto_start_stop_log:
+                        self.sio.emit(
+                            "broadcast_message",
+                            "log started because vehicle is driving",
+                        )
+                        self._start_logging()
+                else:
+                    if self.logging and self.auto_start_stop_log:
+                        self.sio.emit(
+                            "broadcast_message",
+                            "log stopped because vehicle is parked",
+                        )
+                        self._stop_logging()
 
 
 if __name__ == "__main__":

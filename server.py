@@ -52,15 +52,8 @@ def broadcast_vehicle_stats(sid, data):
 
 
 @sio.event
-def broadcast_start_logging(sid):
-    sio.emit("start_logging")
-    sio.send("Logging start request sent")
-
-
-@sio.event
-def broadcast_stop_logging(sid):
-    sio.emit("stop_logging")
-    sio.send("Logging stop request sent")
+def broadcast_logging_control(sid, data):
+    sio.emit("logging_control", data)
 
 
 @sio.event

@@ -132,9 +132,17 @@ function clearTable(table) {
 }
 
 function start_logging() {
-    sio.emit('broadcast_start_logging');
+    sio.emit('broadcast_logging_control', 'start');
 }
 
 function stop_logging() {
-    sio.emit('broadcast_stop_logging');
+    sio.emit('broadcast_logging_control', 'stop');
+}
+
+function auto_logging_on() {
+    sio.emit('broadcast_logging_control', 'auto_on');
+}
+
+function auto_logging_off() {
+    sio.emit('broadcast_logging_control', 'auto_off');
 }
