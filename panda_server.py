@@ -111,8 +111,9 @@ class PandaServer:
                 clients = list(self.panda_clients.values()).copy()
                 for client in clients:
                     for frame in msgs_to_send:
-                        client.send_frame(frame)
-                    self.frame_count += len(msgs_to_send)
+                        sent = client.send_frame(frame)
+                        if sent:
+                            self.frame_count += 1
             except Exception as e:
                 self.logger.exception(e)
                 self.shutdown()

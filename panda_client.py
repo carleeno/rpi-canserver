@@ -67,9 +67,9 @@ class PandaClient:
             self.logger.info("Hearbeat expired")
             self._disconnect()
 
-    def send_frame(self, frame: Message):
+    def send_frame(self, frame: Message) -> bool:
         if not self.connected:
-            return
+            return False
         frame_id = frame.arbitration_id
         bus = channel2int(frame.channel)
         if (not self.is_v2) or self.v2_send_all or frame_id in self.v2_filter_list[bus]:
@@ -80,6 +80,8 @@ class PandaClient:
             )
             data += struct.pack("<%dB" % frame.dlc, *frame.data)
             self._send_raw(data)
+            return True
+        return False
 
     def _send_raw(self, data: bytes):
         if data == self._ack_packet:
