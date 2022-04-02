@@ -139,13 +139,19 @@ class CanServer:
             self.rolling_disk_io[-1][1].write_count
             - self.rolling_disk_io[0][1].write_count
         )
-        write_speed = write_bytes_delta / time_delta / 1024
-        write_ops = write_ops_delta / time_delta
-        system_stats["disk write speed"] = {
-            "value": round(write_speed, 2),
-            "unit": "KB/s",
-        }
-        system_stats["disk write ops"] = {"value": round(write_ops, 2), "unit": "ops/s"}
+        try:
+            write_speed = write_bytes_delta / time_delta / 1024
+            write_ops = write_ops_delta / time_delta
+            system_stats["disk write speed"] = {
+                "value": round(write_speed, 2),
+                "unit": "KB/s",
+            }
+            system_stats["disk write ops"] = {
+                "value": round(write_ops, 2),
+                "unit": "ops/s",
+            }
+        except ZeroDivisionError:
+            pass
 
         if self.sio.connected:
             self.sio.emit("broadcast_stats", {"system": system_stats})
@@ -179,7 +185,6 @@ class CanServer:
             tools.deep_update(self.stats, data)
             now = int(time())
             if self.stats["last_logged"] + 60 <= now:
-                del self.stats["last_logged"]
                 logger.debug(self.stats)
                 self.stats["last_logged"] = now
 
