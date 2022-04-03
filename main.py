@@ -56,9 +56,6 @@ class CanServer:
         self.disk_io_time_window = 30
         self.killer = tools.GracefulKiller()
 
-        if timesync and not test:
-            subprocess.call(shlex.split("timedatectl set-ntp false"))
-
     def run(self):
         self.server_proc = subprocess.Popen(
             self.server_cmd,
@@ -207,9 +204,9 @@ class CanServer:
                     )
                     self.last_detected_offset = offset
                     if self.timesync:
-                        logger.warning(f"Adjusting system time by {offset} seconds")
                         tools.fix_sys_time(offset)
                         self.last_detected_offset = 0.0
+                        logger.warning(f"Adjusted system time by {offset} seconds")
 
 
 def parse_args():

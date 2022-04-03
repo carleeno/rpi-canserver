@@ -7,6 +7,8 @@ services:
       - /home/${USER}/canserver-logs:/tmp/canserver-logs
       - /etc/localtime:/etc/localtime
       - /etc/timezone:/etc/timezone
+    cap_add:
+      - SYS_TIME
     stop_grace_period: 30s
     depends_on:
       - redis

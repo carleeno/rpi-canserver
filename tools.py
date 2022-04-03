@@ -13,14 +13,8 @@ def sys_time_offset(frame_ts, car_ts):
 def fix_sys_time(offset):
     now = datetime.now().timestamp()
     now += offset
-    _linux_set_time(now)
-
-
-def _linux_set_time(timestamp):
-    time_string = datetime.fromtimestamp(timestamp).isoformat()
-
-    subprocess.call(shlex.split("sudo date -s '%s'" % time_string))
-    subprocess.call(shlex.split("sudo hwclock -w"))
+    time_string = datetime.fromtimestamp(now).isoformat()
+    subprocess.call(shlex.split("date -s '%s'" % time_string))
 
 
 def deep_update(source, overrides):
