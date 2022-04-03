@@ -21,9 +21,12 @@ server_stderr = open("/tmp/canserver-logs/server.stderr.log", "w")
 
 
 class CanServer:
-    def __init__(self, address, panda_bind, batch_size, test) -> None:
+    def __init__(self, address, panda_bind, batch_size, test, timesync) -> None:
         self.server_address = address
         self.batch_size = batch_size
+        self.test = test
+        self.timesync = timesync
+        self.last_detected_offset = 0.0
         self.server_proc = None
         self.client_procs: List[subprocess.Popen] = []
         self.sio = socketio.Client()
@@ -52,6 +55,9 @@ class CanServer:
         self.rolling_disk_io = [(time(), psutil.disk_io_counters(nowrap=True))]
         self.disk_io_time_window = 30
         self.killer = tools.GracefulKiller()
+
+        if timesync and not test:
+            subprocess.call(shlex.split("timedatectl set-ntp false"))
 
     def run(self):
         self.server_proc = subprocess.Popen(
@@ -188,6 +194,23 @@ class CanServer:
                 logger.debug(self.stats)
                 self.stats["last_logged"] = now
 
+        @self.sio.event
+        def vehicle_stats(data):
+            if self.test:
+                return
+            if data.get("1320"):
+                car_time = data["1320"]["data"]["UnixTimeSeconds528"]["value"]
+                offset = tools.sys_time_offset(data["1320"]["timestamp"], car_time)
+                if offset > 0.1 and offset > self.last_detected_offset:
+                    logger.warning(
+                        f"System time appears off by {offset} seconds (vs vehicle time)"
+                    )
+                    self.last_detected_offset = offset
+                    if self.timesync:
+                        logger.warning(f"Adjusting system time by {offset} seconds")
+                        tools.fix_sys_time(offset)
+                        self.last_detected_offset = 0.0
+
 
 def parse_args():
     parser = ArgumentParser()
@@ -209,6 +232,9 @@ def parse_args():
     parser.add_argument(
         "--test", action="store_true", help="Run in test mode (no can device)"
     )
+    parser.add_argument(
+        "--timesync", action="store_true", help="Sync system time from vehicle"
+    )
 
     return parser.parse_args()
 
@@ -216,7 +242,9 @@ def parse_args():
 def main():
     logger.info("################ CAN-Server is starting ################")
     args = parse_args()
-    canserver = CanServer(args.address, args.panda_bind, args.batch_size, args.test)
+    canserver = CanServer(
+        args.address, args.panda_bind, args.batch_size, args.test, args.timesync
+    )
     try:
         canserver.run()
         canserver.shutdown(reason="run completed")

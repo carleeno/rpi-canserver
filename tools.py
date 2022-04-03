@@ -1,5 +1,26 @@
 import collections.abc
+import shlex
 import signal
+import subprocess
+from datetime import datetime
+
+
+def sys_time_offset(frame_ts, car_ts):
+    offset = round(car_ts - frame_ts, 3)
+    return offset
+
+
+def fix_sys_time(offset):
+    now = datetime.now().timestamp()
+    now += offset
+    _linux_set_time(now)
+
+
+def _linux_set_time(timestamp):
+    time_string = datetime.fromtimestamp(timestamp).isoformat()
+
+    subprocess.call(shlex.split("sudo date -s '%s'" % time_string))
+    subprocess.call(shlex.split("sudo hwclock -w"))
 
 
 def deep_update(source, overrides):
