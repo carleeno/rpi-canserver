@@ -146,7 +146,12 @@ class CanDecoder:
 
         self._last_decoded_ts[message.arbitration_id] = message.timestamp
 
-        return {message.arbitration_id: decoded_data}
+        return {
+            message.arbitration_id: {
+                "data": decoded_data,
+                "timestamp": message.timestamp,
+            }
+        }
 
     def _stats_publisher(self):
         now = time()

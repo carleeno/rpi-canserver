@@ -83,14 +83,14 @@ function updateSystemStats(stats) {
 function updateVehicleStats(stats) {
     table = document.getElementById('vehicle_stats');
     for (let msg in stats) {
-        for (let sig in stats[msg]) {
+        for (let sig in stats[msg].data) {
             row = document.getElementById(`veh_stat_${msg}_${sig}`);
             if (row == null) {
                 row = document.createElement("tr");
                 row.id = `veh_stat_${msg}_${sig}`;
                 table.tBodies[0].appendChild(row);
             }
-            signal = stats[msg][sig];
+            signal = stats[msg].data[sig];
             svalue = Math.round(signal.value*100000000)/100000000;
             sname = signal.name;
             sunit = signal.unit;

@@ -181,7 +181,7 @@ class CanLogger:
         @self.sio.event
         def vehicle_stats(data):
             if data.get("280"):
-                if data["280"]["DI_gear"]["name"] in [
+                if data["280"]["data"]["DI_gear"]["name"] in [
                     "DI_GEAR_D",
                     "DI_GEAR_N",
                     "DI_GEAR_R",
