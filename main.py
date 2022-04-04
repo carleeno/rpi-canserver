@@ -198,11 +198,11 @@ class CanServer:
             if data.get(cfg.vehicle_time_frame_id):
                 car_time = data[cfg.vehicle_time_frame_id]["data"][cfg.vehicle_time_signal_name]["value"]
                 offset = tools.sys_time_offset(data[cfg.vehicle_time_frame_id]["timestamp"], car_time)
-                if offset > 0.1 and offset > self.last_detected_offset:
+                if abs(offset) > 0.1 and round(offset, 2) != self.last_detected_offset:
                     logger.warning(
                         f"System time appears off by {offset} seconds (vs vehicle time)"
                     )
-                    self.last_detected_offset = offset
+                    self.last_detected_offset = round(offset, 2)
                     if self.timesync:
                         tools.fix_sys_time(offset)
                         self.last_detected_offset = 0.0
