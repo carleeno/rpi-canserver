@@ -195,9 +195,9 @@ class CanServer:
         def vehicle_stats(data):
             if self.test:
                 return
-            if data.get("1320"):
-                car_time = data["1320"]["data"]["UnixTimeSeconds528"]["value"]
-                offset = tools.sys_time_offset(data["1320"]["timestamp"], car_time)
+            if data.get(cfg.vehicle_time_frame_id):
+                car_time = data[cfg.vehicle_time_frame_id]["data"][cfg.vehicle_time_signal_name]["value"]
+                offset = tools.sys_time_offset(data[cfg.vehicle_time_frame_id]["timestamp"], car_time)
                 if offset > 0.1 and offset > self.last_detected_offset:
                     logger.warning(
                         f"System time appears off by {offset} seconds (vs vehicle time)"
