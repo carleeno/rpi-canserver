@@ -60,6 +60,11 @@ def broadcast_logging_control(sid, data):
 
 
 @sio.event
+def broadcast_time_reset(sid):
+    sio.emit("time_reset")
+
+
+@sio.event
 def enter_room(sid, room):
     sio.enter_room(sid, room)
     sio.send(f"You're now in '{room}'", to=sid)

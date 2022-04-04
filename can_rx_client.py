@@ -142,6 +142,12 @@ class CanReader:
         def connect_error(e):
             self.logger.error(e)
 
+        @self.sio.event
+        def time_reset():
+            now = time()
+            self.count_start = now
+            self.frame_count = 0
+
 
 if __name__ == "__main__":
     try:

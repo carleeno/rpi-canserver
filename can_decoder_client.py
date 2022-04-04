@@ -167,6 +167,15 @@ class CanDecoder:
         def connect_error(e):
             self.logger.error(e)
 
+        @self.sio.event
+        def time_reset():
+            now = time()
+            self.count_start = now
+            self.frame_count = 0
+            self._batch_start = now
+            self._last_decoded_ts = {}
+            self._msg_batch = []
+
 
 if __name__ == "__main__":
     try:

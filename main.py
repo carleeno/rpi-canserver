@@ -207,7 +207,17 @@ class CanServer:
                         tools.fix_sys_time(offset)
                         self.last_detected_offset = 0.0
                         logger.warning(f"Adjusted system time by {offset} seconds")
+                        if abs(offset) > 1.0:
+                            self.sio.emit("broadcast_time_reset")
 
+        @self.sio.event
+        def time_reset():
+            now = time()
+            self.count_start = now
+            self.frame_count = 0
+            self.stats = {"last_logged": int(time())}
+            psutil.cpu_percent()  # initial call to set start of interval
+            self.rolling_disk_io = [(time(), psutil.disk_io_counters(nowrap=True))]
 
 def parse_args():
     parser = ArgumentParser()
