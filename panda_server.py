@@ -111,7 +111,10 @@ class PandaServer:
                 clients = list(self.panda_clients.values()).copy()
                 for client in clients:
                     for frame in msgs_to_send:
-                        sent = client.send_frame(frame)
+                        try:
+                            sent = client.send_frame(frame)
+                        except:
+                            sent = False
                         if sent:
                             self.frame_count += 1
             except Exception as e:
@@ -162,6 +165,14 @@ class PandaServer:
         @self.sio.event
         def connect_error(e):
             self.logger.error(e)
+
+        @self.sio.event
+        def time_reset():
+            now = time()
+            self.last_stats_time = now
+            self.frame_count = 0
+            self._batch_start = now
+            self._frame_batch = []
 
 
 if __name__ == "__main__":

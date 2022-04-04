@@ -56,7 +56,12 @@ def broadcast_vehicle_stats(sid, data):
 @sio.event
 def broadcast_logging_control(sid, data):
     sio.emit("logging_control", data)
-    sio.send(f"Senting logging control: {data}")
+    sio.send(f"Sending logging control: {data}")
+
+
+@sio.event
+def broadcast_time_reset(sid):
+    sio.emit("time_reset")
 
 
 @sio.event

@@ -1,5 +1,20 @@
 import collections.abc
+import shlex
 import signal
+import subprocess
+from datetime import datetime
+
+
+def sys_time_offset(frame_ts, car_ts):
+    offset = round(car_ts - frame_ts, 3)
+    return offset
+
+
+def fix_sys_time(offset):
+    now = datetime.now().timestamp()
+    now += offset
+    time_string = datetime.fromtimestamp(now).isoformat()
+    subprocess.call(shlex.split("date -s '%s'" % time_string))
 
 
 def deep_update(source, overrides):

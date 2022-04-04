@@ -167,6 +167,13 @@ class CanLogger:
             self.sio.emit("broadcast_message", msg)
 
         @self.sio.event
+        def time_reset():
+            now = time()
+            self.count_start = now
+            self.frame_count = 0
+            self._last_gear_state_time = now
+
+        @self.sio.event
         def stats(data):
             if self.logging and data.get("system") and data["system"].get("disk usage"):
                 usage = int(data["system"]["disk usage"]["value"])
@@ -181,7 +188,7 @@ class CanLogger:
         @self.sio.event
         def vehicle_stats(data):
             if data.get("280"):
-                if data["280"]["DI_gear"]["name"] in [
+                if data["280"]["data"]["DI_gear"]["name"] in [
                     "DI_GEAR_D",
                     "DI_GEAR_N",
                     "DI_GEAR_R",

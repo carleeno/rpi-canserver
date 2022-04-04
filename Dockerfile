@@ -10,8 +10,8 @@ RUN apt-get update && apt-get install --no-install-recommends -y python3.9 pytho
 
 # create and activate virtual environment
 # using final folder name to avoid path issues with packages
-RUN python3.9 -m venv /home/rpics/venv
-ENV PATH="/home/rpics/venv/bin:$PATH"
+RUN python3.9 -m venv /venv
+ENV PATH="/venv/bin:$PATH"
 
 # install requirements
 COPY requirements.txt .
@@ -23,12 +23,10 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install --no-install-recommends -y tzdata netbase lm-sensors python3.9 python3-venv && \
 	apt-get clean && rm -rf /var/lib/apt/lists/*
 
-RUN useradd --create-home rpics
-COPY --from=builder-image /home/rpics/venv /home/rpics/venv
+COPY --from=builder-image /venv /venv
 
-USER rpics
-RUN mkdir -p /home/rpics/app
-WORKDIR /home/rpics/app
+RUN mkdir -p /app
+WORKDIR /app
 COPY . .
 
 EXPOSE 5000
@@ -37,7 +35,7 @@ EXPOSE 5000
 ENV PYTHONUNBUFFERED=1
 
 # activate virtual environment
-ENV VIRTUAL_ENV=/home/rpics/venv
-ENV PATH="/home/rpics/venv/bin:$PATH"
+ENV VIRTUAL_ENV=/venv
+ENV PATH="/venv/bin:$PATH"
 
 CMD ["python3", "main.py"]

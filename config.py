@@ -25,7 +25,12 @@ can_filter = [
     "ID2E5FrontInverterPower",
     "ID33AUI_rangeSOC",
     "ID3C2VCLEFT_switchStatus",
+    "ID528UnixTime",
 ]
 
 # If you have a pican DUO:
 pican_duo = True
+
+# This is used for syncing system time to vehicle time, these values are for Tesla:
+vehicle_time_frame_id = "1320"
+vehicle_time_signal_name = "UnixTimeSeconds528"
