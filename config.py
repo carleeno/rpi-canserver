@@ -19,6 +19,7 @@ can_filter = [
     "ID186DIF_torque",
     "ID20CVCRIGHT_hvacRequest",
     "ID243VCRIGHT_hvacStatus",
+    "ID249SCCMLeftStalk",
     "ID257DIspeed",
     "ID266RearInverterPower",
     "ID273UI_vehicleControl",
@@ -39,3 +40,15 @@ vehicle_time_signal_name = "UnixTimeSeconds528"
 vehicle_gear_frame_id = "118"
 vehicle_gear_signal_name = "DI_gear"
 vehicle_gear_logging_states = ["DI_GEAR_D", "DI_GEAR_N", "DI_GEAR_R"]
+
+# This is used to control auto logging
+auto_logging_frame_id = "273"
+auto_logging_signal_name = "UI_rearWindowLockout"
+auto_logging_on_value = 1
+
+# This is used to flag a log for saving
+flag_log_frame_id = "249"
+flag_log_signal_name = "SCCM_highBeamStalkStatus"
+flag_log_state = "PUSH"
+# Only flag when holding the signal for at least this duration
+flag_log_signal_duration = 0.8

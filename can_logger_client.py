@@ -24,12 +24,16 @@ class CanLogger:
         self.red_sub = self.red.pubsub()
 
         self.log_dir = self.log_dir.rstrip("/")
-        os.makedirs(self.log_dir, exist_ok=True)
+        os.makedirs(f"{self.log_dir}/flagged", exist_ok=True)
         self.writer = None
         self.file_path = None
         self.file_name = None
         self.logging = False
-        self.auto_start_stop_log = True
+        self.auto_start_stop_log = False
+        self.disk_full = False
+        self.last_flag_log_signal = False
+        self.first_flag_log_time = 0
+        self.flag_this_log = False
         self.count_start = time()
         self.frame_count = 0
         self._last_gear_state_time = 0.0
@@ -112,9 +116,12 @@ class CanLogger:
     def _start_logging(self):
         if self.logging:
             return
+        self.flag_this_log = False
         start_time = datetime.now()
-        self.file_name = start_time.strftime("%Y-%m-%d_%H.%M.%S_") + self.channel
-        self.file_path = f"{self.log_dir}/{self.file_name}.asc"
+        self.file_name = (
+            start_time.strftime("%Y-%m-%d_%H.%M.%S_") + self.channel + ".asc"
+        )
+        self.file_path = f"{self.log_dir}/{self.file_name}"
         self.writer = ASCWriter(self.file_path)
 
         self.count_start = time()
@@ -122,9 +129,13 @@ class CanLogger:
         self.logging = True
 
     def _stop_logging(self):
-        if self.logging:
-            self.logging = False
-            self.writer.stop()
+        if not self.logging:
+            return
+        self.logging = False
+        sleep(0.1)  # prevent race condition with writing thread.
+        self.writer.stop()
+        if self.flag_this_log:
+            os.replace(self.file_path, f"{self.log_dir}/flagged/{self.file_name}")
 
     def _stats_publisher(self):
         now = time()
@@ -153,17 +164,23 @@ class CanLogger:
         @self.sio.event
         def logging_control(data):
             if data == "start":
-                self._start_logging()
-                msg = "log started by request"
+                if not self.disk_full:
+                    self._start_logging()
+                    msg = "log started by request"
+                else:
+                    msg = "log not started, disk full"
             elif data == "stop":
                 self._stop_logging()
                 msg = "log stopped by request"
             elif data == "auto_on":
-                self.auto_start_stop_log = True
-                msg = "log auto start/stop enabled"
+                if not self.disk_full:
+                    self.auto_start_stop_log = True
+                    msg = "auto logging enabled by request"
+                else:
+                    msg = "auto logging not enabled, disk full"
             elif data == "auto_off":
                 self.auto_start_stop_log = False
-                msg = "log auto start/stop disabled"
+                msg = "auto logging disabled by request"
 
             self.sio.emit("broadcast_message", msg)
 
@@ -176,18 +193,23 @@ class CanLogger:
 
         @self.sio.event
         def stats(data):
-            if self.logging and data.get("system") and data["system"].get("disk usage"):
+            msg = None
+            if data.get("system") and data["system"].get("disk usage"):
                 usage = int(data["system"]["disk usage"]["value"])
-                if usage > 90:
+                if usage > 90 and not self.disk_full:
+                    self.disk_full = True
+                    self.auto_start_stop_log = False
                     self._stop_logging()
-                    if self.sio.connected:
-                        self.sio.emit(
-                            "broadcast_message",
-                            "log stopped because disk is almost full.",
-                        )
+                    msg = "logging disabled, disk almost full"
+                if usage <= 90 and self.disk_full:
+                    self.disk_full = False
+                    msg = "logging reenabled, disk no longer full"
+            if msg and self.sio.connected:
+                self.sio.emit("broadcast_message", msg)
 
         @self.sio.event
         def vehicle_stats(data):
+            msg = None
             if data.get(cfg.vehicle_gear_frame_id):
                 if (
                     data[cfg.vehicle_gear_frame_id]["data"][
@@ -196,19 +218,57 @@ class CanLogger:
                     in cfg.vehicle_gear_logging_states
                 ):
                     self._last_gear_state_time = time()
-                    if not self.logging and self.auto_start_stop_log:
-                        self.sio.emit(
-                            "broadcast_message",
-                            "log started because vehicle is driving",
-                        )
+                    if (
+                        not self.logging
+                        and self.auto_start_stop_log
+                        and not self.disk_full
+                    ):
+                        msg = "log started because vehicle is driving"
                         self._start_logging()
                 else:
                     if self.logging and self.auto_start_stop_log:
-                        self.sio.emit(
-                            "broadcast_message",
-                            "log stopped because vehicle is parked",
-                        )
+                        msg = "log stopped because vehicle is parked"
                         self._stop_logging()
+
+            if data.get(cfg.auto_logging_frame_id):
+                if (
+                    data[cfg.auto_logging_frame_id]["data"][
+                        cfg.auto_logging_signal_name
+                    ]["value"]
+                    == cfg.auto_logging_on_value
+                ):
+                    if not self.auto_start_stop_log and not self.disk_full:
+                        self.auto_start_stop_log = True
+                        msg = "auto logging enabled by vehicle"
+                elif self.auto_start_stop_log:
+                    self.auto_start_stop_log = False
+                    msg = "auto logging disabled by vehicle"
+                    if self.logging:
+                        self._stop_logging()
+                        msg += ", and logging stopped"
+
+            if data.get(cfg.flag_log_frame_id):
+                if (
+                    data[cfg.flag_log_frame_id]["data"][cfg.flag_log_signal_name][
+                        "state"
+                    ]
+                    == cfg.flag_log_state
+                ):
+                    if (
+                        self.last_flag_log_signal
+                        and time() - self.first_flag_log_time
+                        >= cfg.flag_log_signal_duration
+                    ):
+                        msg = "log flagged"
+                        self.flag_this_log = True
+                    elif not self.last_flag_log_signal:
+                        self.first_flag_log_time = time()
+                        self.last_flag_log_signal = True
+                elif self.last_flag_log_signal:
+                    self.last_flag_log_signal = False
+
+            if msg and self.sio.connected:
+                self.sio.emit("broadcast_message", msg)
 
 
 if __name__ == "__main__":
