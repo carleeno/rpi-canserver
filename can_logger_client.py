@@ -131,6 +131,7 @@ class CanLogger:
         if not self.logging:
             return
         self.logging = False
+        sleep(0.1)  # prevent race condition with writing thread.
         self.writer.stop()
         if self.flag_this_log:
             self.flag_this_log = False
