@@ -24,13 +24,16 @@ class CanLogger:
         self.red_sub = self.red.pubsub()
 
         self.log_dir = self.log_dir.rstrip("/")
-        os.makedirs(self.log_dir, exist_ok=True)
+        os.makedirs(f"{self.log_dir}/flagged", exist_ok=True)
         self.writer = None
         self.file_path = None
         self.file_name = None
         self.logging = False
         self.auto_start_stop_log = False
         self.disk_full = False
+        self.last_flag_log_signal = False
+        self.first_flag_log_time = 0
+        self.flag_this_log = False
         self.count_start = time()
         self.frame_count = 0
         self._last_gear_state_time = 0.0
@@ -114,8 +117,10 @@ class CanLogger:
         if self.logging:
             return
         start_time = datetime.now()
-        self.file_name = start_time.strftime("%Y-%m-%d_%H.%M.%S_") + self.channel
-        self.file_path = f"{self.log_dir}/{self.file_name}.asc"
+        self.file_name = (
+            start_time.strftime("%Y-%m-%d_%H.%M.%S_") + self.channel + ".asc"
+        )
+        self.file_path = f"{self.log_dir}/{self.file_name}"
         self.writer = ASCWriter(self.file_path)
 
         self.count_start = time()
@@ -123,9 +128,13 @@ class CanLogger:
         self.logging = True
 
     def _stop_logging(self):
-        if self.logging:
-            self.logging = False
-            self.writer.stop()
+        if not self.logging:
+            return
+        self.logging = False
+        self.writer.stop()
+        if self.flag_this_log:
+            self.flag_this_log = False
+            os.replace(self.file_path, f"{self.log_dir}/flagged/{self.file_name}")
 
     def _stats_publisher(self):
         now = time()
@@ -225,7 +234,7 @@ class CanLogger:
                     data[cfg.auto_logging_frame_id]["data"][
                         cfg.auto_logging_signal_name
                     ]["value"]
-                    == cfg.auto_logging_on_state
+                    == cfg.auto_logging_on_value
                 ):
                     if not self.auto_start_stop_log and not self.disk_full:
                         self.auto_start_stop_log = True
@@ -236,6 +245,26 @@ class CanLogger:
                     if self.logging:
                         self._stop_logging()
                         msg += ", and logging stopped"
+
+            if data.get(cfg.flag_log_frame_id):
+                if (
+                    data[cfg.flag_log_frame_id]["data"][cfg.flag_log_signal_name][
+                        "state"
+                    ]
+                    == cfg.flag_log_state
+                ):
+                    if (
+                        self.last_flag_log_signal
+                        and time() - self.first_flag_log_time
+                        >= cfg.flag_log_signal_duration
+                    ):
+                        msg = "log flagged"
+                        self.flag_this_log = True
+                    elif not self.last_flag_log_signal:
+                        self.first_flag_log_time = time()
+                        self.last_flag_log_signal = True
+                elif self.last_flag_log_signal:
+                    self.last_flag_log_signal = False
 
             if msg and self.sio.connected:
                 self.sio.emit("broadcast_message", msg)
