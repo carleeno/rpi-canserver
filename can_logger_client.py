@@ -9,6 +9,7 @@ import redis
 import socketio
 from can import ASCWriter
 
+import config as cfg
 from logging_setup import setup_logging
 
 setup_logging()
@@ -187,12 +188,13 @@ class CanLogger:
 
         @self.sio.event
         def vehicle_stats(data):
-            if data.get("280"):
-                if data["280"]["data"]["DI_gear"]["name"] in [
-                    "DI_GEAR_D",
-                    "DI_GEAR_N",
-                    "DI_GEAR_R",
-                ]:
+            if data.get(cfg.vehicle_gear_frame_id):
+                if (
+                    data[cfg.vehicle_gear_frame_id]["data"][
+                        cfg.vehicle_gear_signal_name
+                    ]["state"]
+                    in cfg.vehicle_gear_logging_states
+                ):
                     self._last_gear_state_time = time()
                     if not self.logging and self.auto_start_stop_log:
                         self.sio.emit(

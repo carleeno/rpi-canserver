@@ -92,10 +92,10 @@ function updateVehicleStats(stats) {
             }
             signal = stats[msg].data[sig];
             svalue = Math.round(signal.value*100000000)/100000000;
-            sname = signal.name;
+            sstate = signal.state;
             sunit = signal.unit;
-            if (sname) {
-                rowHTML = `<td>${msg}</td><td>${sig}</td><td>${sname}</td>`;
+            if (sstate) {
+                rowHTML = `<td>${msg}</td><td>${sig}</td><td>${sstate}</td>`;
             } else if (sunit) {
                 rowHTML = `<td>${msg}</td><td>${sig}</td><td>${svalue} ${sunit}</td>`;
             } else {

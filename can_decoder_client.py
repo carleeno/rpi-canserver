@@ -135,7 +135,7 @@ class CanDecoder:
             for k, v in decoded_data.items():
                 unit = self._signal_cache[message.arbitration_id][k].unit
                 if isinstance(v, cantools.db.can.signal.NamedSignalValue):
-                    decoded_data[k] = {"name": v.name, "value": v.value}
+                    decoded_data[k] = {"state": v.name, "value": v.value}
                 else:
                     decoded_data[k] = {"value": v, "unit": unit}
         except Exception as e:
@@ -146,8 +146,12 @@ class CanDecoder:
 
         self._last_decoded_ts[message.arbitration_id] = message.timestamp
 
+        frame_id = hex(message.arbitration_id).upper()[2:]
+        while len(frame_id) < 3:
+            frame_id = "0" + frame_id
+
         return {
-            message.arbitration_id: {
+            frame_id: {
                 "data": decoded_data,
                 "timestamp": message.timestamp,
             }

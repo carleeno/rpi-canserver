@@ -32,5 +32,10 @@ can_filter = [
 pican_duo = True
 
 # This is used for syncing system time to vehicle time, these values are for Tesla:
-vehicle_time_frame_id = "1320"
+vehicle_time_frame_id = "528"
 vehicle_time_signal_name = "UnixTimeSeconds528"
+
+# This is used to automatically start/stop logging
+vehicle_gear_frame_id = "118"
+vehicle_gear_signal_name = "DI_gear"
+vehicle_gear_logging_states = ["DI_GEAR_D", "DI_GEAR_N", "DI_GEAR_R"]
