@@ -196,17 +196,22 @@ class CanServer:
             if self.test:
                 return
             if data.get(cfg.vehicle_time_frame_id):
-                car_time = data[cfg.vehicle_time_frame_id]["data"][cfg.vehicle_time_signal_name]["value"]
-                offset = tools.sys_time_offset(data[cfg.vehicle_time_frame_id]["timestamp"], car_time)
-                if abs(offset) > 0.1 and round(offset, 2) != self.last_detected_offset:
-                    logger.warning(
-                        f"System time appears off by {offset} seconds (vs vehicle time)"
-                    )
+                car_time = data[cfg.vehicle_time_frame_id]["data"][
+                    cfg.vehicle_time_signal_name
+                ]["value"]
+                offset = tools.sys_time_offset(
+                    data[cfg.vehicle_time_frame_id]["timestamp"], car_time
+                )
+                if abs(offset) > 0.01 and round(offset, 2) != self.last_detected_offset:
+                    if not self.timesync:
+                        logger.warning(
+                            f"System time appears off by {offset} seconds (vs vehicle time)"
+                        )
                     self.last_detected_offset = round(offset, 2)
                     if self.timesync:
                         tools.fix_sys_time(offset)
                         self.last_detected_offset = 0.0
-                        logger.warning(f"Adjusted system time by {offset} seconds")
+                        logger.debug(f"Adjusted system time by {offset} seconds")
                         if abs(offset) > 1.0:
                             self.sio.emit("broadcast_time_reset")
 
@@ -218,6 +223,7 @@ class CanServer:
             self.stats = {"last_logged": int(time())}
             psutil.cpu_percent()  # initial call to set start of interval
             self.rolling_disk_io = [(time(), psutil.disk_io_counters(nowrap=True))]
+
 
 def parse_args():
     parser = ArgumentParser()
