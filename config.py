@@ -43,7 +43,7 @@ vehicle_gear_logging_states = ["DI_GEAR_D", "DI_GEAR_N", "DI_GEAR_R"]
 
 # This is used to control auto logging
 auto_logging_frame_id = "273"
-auto_logging_signal_name = "UI_frontFogSwitch"
+auto_logging_signal_name = "UI_rearWindowLockout"
 auto_logging_on_value = 1
 
 # This is used to flag a log for saving

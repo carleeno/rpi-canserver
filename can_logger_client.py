@@ -116,6 +116,7 @@ class CanLogger:
     def _start_logging(self):
         if self.logging:
             return
+        self.flag_this_log = False
         start_time = datetime.now()
         self.file_name = (
             start_time.strftime("%Y-%m-%d_%H.%M.%S_") + self.channel + ".asc"
@@ -134,7 +135,6 @@ class CanLogger:
         sleep(0.1)  # prevent race condition with writing thread.
         self.writer.stop()
         if self.flag_this_log:
-            self.flag_this_log = False
             os.replace(self.file_path, f"{self.log_dir}/flagged/{self.file_name}")
 
     def _stats_publisher(self):
