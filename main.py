@@ -202,7 +202,7 @@ class CanServer:
                 offset = tools.sys_time_offset(
                     data[cfg.vehicle_time_frame_id]["timestamp"], car_time
                 )
-                if abs(offset) > 0.01 and round(offset, 2) != self.last_detected_offset:
+                if abs(offset) > 0.03 and round(offset, 2) != self.last_detected_offset:
                     if not self.timesync:
                         logger.warning(
                             f"System time appears off by {offset} seconds (vs vehicle time)"
